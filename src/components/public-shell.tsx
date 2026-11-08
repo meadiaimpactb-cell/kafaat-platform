@@ -33,7 +33,7 @@ export function PublicFooter() {
       <div className="mx-auto grid max-w-7xl gap-8 px-5 py-12 md:grid-cols-4">
         <div className="md:col-span-2">
           <Logo className="h-12" />
-          <p className="mt-4 max-w-md text-sm leading-7 text-muted">منصة لتقييم كفاءة الأثر في الجهات غير الربحية: كم من الأثر الصافي الموثق يصنعه كل ريال، وبأي قوة دليل. مبنية على دراسة 132 عاملاً واعتمدت أوزانها ورش عمل مع أكثر من عشرة خبراء.</p>
+          <p className="mt-4 max-w-md text-sm leading-7 text-muted">منصة لتقييم كفاءة الأثر في الجهات غير الربحية: ما مقدار الأثر الحقيقي الموثق الذي تصنعه الجهة بما لديها من موارد، وبأي قوة دليل.</p>
         </div>
         <div>
           <div className="mb-3 font-display font-semibold">المنصة</div>
@@ -52,7 +52,11 @@ export function PublicFooter() {
         </div>
       </div>
       <div className="spectrum h-1.5" />
-      <div className="py-4 text-center text-xs text-muted">© {new Date().getFullYear()} كفاءة الأثر — قياسٌ أوثق، قرارٌ أذكى، وأثرٌ أبقى</div>
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-4 text-xs text-muted">
+        <span>© {new Date().getFullYear()} كفاءة الأثر — قياسٌ أوثق، قرارٌ أذكى، وأثرٌ أبقى · المنهجية من تأليف م. إلياس عبد الكريم</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <span className="flex items-center gap-2">إحدى مبادرات استديو صناع الأثر <img src="/brand/studio.png" alt="استديو صناع الأثر" className="h-7 w-auto" /></span>
+      </div>
     </footer>
   );
 }

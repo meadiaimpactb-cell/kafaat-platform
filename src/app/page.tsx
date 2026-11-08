@@ -29,10 +29,10 @@ export default async function Home() {
               <Sparkles className="size-4" /> تقييم مدعوم بالذكاء الاصطناعي ومراجعة خبراء معتمدين
             </div>
             <h1 className="font-display text-4xl font-bold leading-[1.25] md:text-[3.4rem]">
-              كم من <span className="text-lime-brand">الأثر الحقيقي</span><br />يصنعه كل ريال في جهتك؟
+              كم من <span className="text-lime-brand">الأثر الحقيقي</span><br />تصنعه جهتك بما لديها من موارد؟
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-9 text-white/75">
-              شهادة كفاءة الأثر تقيس الأثر الصافي المحقق والموثق لكل وحدة مورد، بمنهج من 56 عاملاً ومعادلة شفافة، وتمنح جهتك مستوى يفهمه المانحون وخريطة واضحة للتطور.
+              شهادة كفاءة الأثر تقيس قدرة جهتك على تحويل مواردها إلى أثر حقيقي موثق، بمنهج من 56 عاملاً ومعادلة شفافة، وتمنح جهتك مستوى يفهمه المانحون وخريطة واضحة للتطور.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <ButtonLink href="/register" variant="lime" size="lg">ابدأ تقييم جهتك <ArrowLeft className="size-5" /></ButtonLink>

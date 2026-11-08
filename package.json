@@ -18,6 +18,7 @@
     "@anthropic-ai/sdk": "^1.6.0",
     "@fontsource-variable/readex-pro": "^5.3.0",
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
+    "@fontsource/tajawal": "^5.3.0",
     "@paralleldrive/cuid2": "^3.3.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",

@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: { default: 'منصة كفاءة الأثر', template: '%s · كفاءة الأثر' },
-  description: 'منصة تقييم كفاءة الأثر للجهات غير الربحية: الأثر الصافي الموثق لكل ريال، وشهادة موثقة بزيارة تحقق.',
+  description: 'منصة تقييم كفاءة الأثر للجهات غير الربحية: قدرة الجهة على تحويل مواردها إلى أثر حقيقي موثق، وشهادة موثقة بزيارة تحقق.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

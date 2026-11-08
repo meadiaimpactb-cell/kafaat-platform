@@ -12,7 +12,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="relative hidden overflow-hidden bg-mesh p-14 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="absolute inset-0 bg-grid-dark" />
         <div className="relative max-w-lg">
-          <div className="font-display text-4xl font-bold leading-tight">قِس ما يصنعه كل ريال من أثر</div>
+          <div className="font-display text-4xl font-bold leading-tight">قِس ما تصنعه جهتك من أثر بمواردها</div>
           <p className="mt-5 leading-8 text-white/70">منصة كفاءة الأثر تمنح جهتك صورة صادقة عن أثرها وكلفته وقوة أدلته، وخريطة واضحة لما يرفع مستواها.</p>
         </div>
         <div className="relative max-w-md rounded-3xl bg-white p-6 text-ink shadow-2xl">
