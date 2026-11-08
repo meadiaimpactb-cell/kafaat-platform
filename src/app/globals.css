@@ -1,0 +1,77 @@
+@import "tailwindcss";
+@import "@fontsource/ibm-plex-sans-arabic/400.css";
+@import "@fontsource/ibm-plex-sans-arabic/500.css";
+@import "@fontsource/ibm-plex-sans-arabic/600.css";
+@import "@fontsource/ibm-plex-sans-arabic/700.css";
+@import "@fontsource-variable/readex-pro/index.css";
+
+@theme {
+  --font-sans: "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --font-display: "Readex Pro Variable", "IBM Plex Sans Arabic", sans-serif;
+
+  --color-forest-950: #04210f;
+  --color-forest-900: #062e1d;
+  --color-forest-800: #0b5233;
+  --color-forest-700: #11663f;
+  --color-forest-600: #2f7a3a;
+  --color-forest-500: #4ca83a;
+  --color-forest-400: #7db33a;
+  --color-forest-300: #b9dca8;
+  --color-forest-200: #dcefd2;
+  --color-forest-100: #eaf6e4;
+  --color-forest-50: #f4f9ef;
+  --color-lime-brand: #c4d42a;
+  --color-amber-brand: #e8b004;
+  --color-orange-brand: #e85a0a;
+  --color-ink: #13201a;
+  --color-ink-2: #3f4f46;
+  --color-muted: #6b7a71;
+  --color-line: #e3e7df;
+  --color-paper: #f6f6f0;
+
+  --radius-xl2: 1.25rem;
+  --shadow-soft: 0 1px 2px rgb(16 40 28 / 0.04), 0 8px 24px -12px rgb(16 40 28 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(16 40 28 / 0.05), 0 20px 40px -18px rgb(16 40 28 / 0.25);
+
+  --animate-rise: rise 0.5s cubic-bezier(.2,.8,.2,1) both;
+  --animate-scan: scan 1.6s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 2s ease-out infinite;
+}
+
+@keyframes rise { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+@keyframes scan { 0% { transform: translateY(-100%) } 100% { transform: translateY(100%) } }
+@keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgb(196 212 42 / .55) } 100% { box-shadow: 0 0 0 14px rgb(196 212 42 / 0) } }
+@keyframes bar-grow { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+
+html { direction: rtl; }
+body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+.font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.ltr { direction: ltr; unicode-bidi: isolate; }
+
+/* خلفيات إبداعية */
+.bg-grid { background-image: linear-gradient(rgb(11 82 51 / .06) 1px, transparent 1px), linear-gradient(90deg, rgb(11 82 51 / .06) 1px, transparent 1px); background-size: 28px 28px; }
+.bg-grid-dark { background-image: linear-gradient(rgb(196 212 42 / .07) 1px, transparent 1px), linear-gradient(90deg, rgb(196 212 42 / .07) 1px, transparent 1px); background-size: 32px 32px; }
+.bg-mesh { background: radial-gradient(60% 80% at 85% 10%, rgb(196 212 42 / .22), transparent 60%), radial-gradient(50% 60% at 10% 90%, rgb(76 168 58 / .25), transparent 60%), linear-gradient(160deg, #062e1d 0%, #0b5233 55%, #11663f 100%); }
+.spectrum { background: linear-gradient(90deg, #e85a0a, #e8b004 25%, #c4d42a 50%, #4ca83a 75%, #0b5233); }
+.spectrum-rtl { background: linear-gradient(270deg, #e85a0a, #e8b004 25%, #c4d42a 50%, #4ca83a 75%, #0b5233); }
+
+.card { background: #fff; border: 1px solid var(--color-line); border-radius: 1.25rem; box-shadow: var(--shadow-soft); }
+.input { width: 100%; border: 1px solid var(--color-line); background: #fff; border-radius: .8rem; padding: .65rem .9rem; font-size: .95rem; outline: none; transition: border-color .15s, box-shadow .15s; }
+.input:focus { border-color: var(--color-forest-500); box-shadow: 0 0 0 4px rgb(76 168 58 / .14); }
+.label { display: block; font-size: .85rem; font-weight: 600; color: var(--color-ink-2); margin-bottom: .35rem; }
+
+::selection { background: #c4d42a; color: #04210f; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #cfd6cc; border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+  @page { size: A4; margin: 0; }
+}
+
+/* عناصر الشبكة لا تتمدد بسبب نص طويل غير قابل للالتفاف */
+@layer base {
+  .grid > * { min-width: 0; }
+}

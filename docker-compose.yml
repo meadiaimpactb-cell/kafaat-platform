@@ -1,0 +1,33 @@
+# تشغيل المنصة مع قاعدة MySQL بأمر واحد:  docker compose up -d --build
+# ثم بيانات العرض التجريبية (مرة واحدة):    docker compose exec app npm run db:seed
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: kafaat
+      MYSQL_USER: kafaat
+      MYSQL_PASSWORD: ${DB_PASSWORD:-kafaat_pass_change_me}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_change_me}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes: ["db_data:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      retries: 20
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["3000:3000"]
+    environment:
+      DATABASE_URL: mysql://kafaat:${DB_PASSWORD:-kafaat_pass_change_me}@db:3306/kafaat
+      APP_SECRET: ${APP_SECRET:-replace-with-a-long-random-secret-at-least-64-characters-long-xx}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      STORAGE_DIR: /app/storage/uploads
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes: ["uploads:/app/storage/uploads"]
+volumes:
+  db_data:
+  uploads:
