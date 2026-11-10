@@ -1,18 +1,19 @@
 import Link from 'next/link';
 import { and, desc, eq } from 'drizzle-orm';
 import { ArrowLeft, Check, CreditCard, FileText, ListChecks, MessageSquareWarning, X, Hourglass, UserCheck, Award } from 'lucide-react';
-import { db, payments, activityLogs, users, infoRequests } from '@/db';
+import { db, payments, activityLogs, infoRequests } from '@/db';
 import { loadOwn } from '@/lib/portal';
 import { recomputeProgress } from '@/lib/workflow';
-import { aiConfig, type GapAnalysis } from '@/lib/ai';
 import { Card, CardTitle, ButtonLink, Progress } from '@/components/ui';
-import { SubmitAssessmentButton, GapPanel } from '@/components/portal/assessment-actions';
+import { SubmitAssessmentButton } from '@/components/portal/assessment-actions';
+import { ReadinessPanel } from '@/components/portal/readiness-panel';
+import { TeamCard } from '@/components/portal/team-card';
 import { fmtRel, fmtSAR } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
 const ACT: Record<string, string> = {
-  'assessment.created': 'أُنشئ طلب التقييم', 'payment.paid': 'اكتمل الدفع', 'document.uploaded': 'رُفع ملف', 'assessment.submitted': 'أُرسل الطلب للمراجعة', 'assessment.assigned': 'أُسند المقيّم',
-  'review.started': 'بدأ المقيّم المراجعة', 'info.requested': 'طلب المقيّم استيضاحاً', 'assessment.resubmitted': 'أُعيد الإرسال بعد الاستيضاح', 'desk.completed': 'صدرت النتيجة غير الموثقة', 'visit.requested': 'طُلبت زيارة التحقق',
+  'assessment.created': 'أُنشئ طلب التقييم', 'payment.paid': 'اكتمل الدفع', 'document.uploaded': 'رُفع ملف', 'assessment.submitted': 'أُرسل الطلب للمراجعة', 'assessment.assigned': 'أُسند الطلب لخبير مراجع', 'assessment.verifier': 'عُيّن خبير التحقق', 'visit.confirmed': 'أُكد موعد الزيارة', 'visit.followup': 'صدر التقرير التعقيبي',
+  'review.started': 'بدأت المراجعة', 'info.requested': 'طُلب استيضاح', 'assessment.resubmitted': 'أُعيد الإرسال بعد الاستيضاح', 'desk.completed': 'صدرت النتيجة غير الموثقة', 'visit.requested': 'طُلبت زيارة التحقق',
   'visit.scheduled': 'جُدولت زيارة التحقق', 'visit.completed': 'اكتملت زيارة التحقق', 'certificate.verified': 'صدرت الشهادة الموثقة', 'payment.approved': 'اعتُمد التحويل البنكي',
 };
 
@@ -23,14 +24,12 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const p = await recomputeProgress(id);
   const pay = (await db.select().from(payments).where(eq(payments.assessmentId, id))).find(x => x.product === 'CERTIFICATE' && ['PENDING', 'FAILED', 'AWAITING_APPROVAL'].includes(x.status));
   const open = await db.select().from(infoRequests).where(and(eq(infoRequests.assessmentId, id), eq(infoRequests.status, 'OPEN')));
-  const assessor = a.assessorId ? (await db.select({ name: users.name, specialties: users.specialties }).from(users).where(eq(users.id, a.assessorId)))[0] : null;
   const acts = await db.select().from(activityLogs).where(eq(activityLogs.assessmentId, id)).orderBy(desc(activityLogs.createdAt)).limit(10);
-  const ai = await aiConfig();
   const need = Math.ceil(p.total * 0.7);
   const checks = [
-    { ok: p.answered >= need, t: 'الإجابة عن 70٪ من الأسئلة على الأقل', d: `${p.answered} من ${p.total} (المطلوب ${need})`, href: `${base}/questions` },
+    { ok: p.answered >= need, t: 'الإجابة عن 70٪ من المعايير على الأقل', d: `${p.answered} من ${p.total} (المطلوب ${need})`, href: `${base}/questions` },
     { ok: !p.missingDocs.length, t: 'رفع الملفات الأساسية للمسار', d: p.missingDocs.length ? `ينقص: ${p.missingDocs.map(m => m.title).join('، ')}` : `${p.docsDone} من ${p.docsTotal} مكتملة`, href: `${base}/documents` },
-    { ok: !open.length, t: 'الرد على استيضاحات المقيّم', d: open.length ? `${open.length} بانتظار ردك` : 'لا توجد استيضاحات مفتوحة', href: `${base}/requests` },
+    { ok: !open.length, t: 'الرد على استيضاحات الخبير', d: open.length ? `${open.length} بانتظار ردك` : 'لا توجد استيضاحات مفتوحة', href: `${base}/requests` },
   ];
   const ready = checks.every(c => c.ok);
 
@@ -47,7 +46,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
         <div className="space-y-6">
           {editable && (
             <Card className="p-6">
-              <CardTitle title="جاهزية الإرسال للمراجعة" subtitle="أكمل البنود الثلاثة ثم أرسل ملفك إلى المقيّم" icon={<ListChecks className="size-5" />} />
+              <CardTitle title="جاهزية الإرسال للمراجعة" subtitle="أكمل البنود الثلاثة ثم أرسل ملفك للمراجعة" icon={<ListChecks className="size-5" />} />
               <ul className="mt-5 space-y-3">
                 {checks.map(c => (
                   <li key={c.t}><Link href={c.href} className="flex items-center gap-4 rounded-2xl border border-line p-4 transition hover:border-forest-400">
@@ -62,8 +61,8 @@ export default async function Page({ params, searchParams }: { params: Promise<{
           )}
           {['SUBMITTED', 'UNDER_REVIEW'].includes(a.status) && (
             <Card className="flex items-center gap-5 p-6">
-              <div className="grid size-14 place-items-center rounded-2xl bg-violet-50 text-violet-700">{assessor ? <UserCheck className="size-6" /> : <Hourglass className="size-6" />}</div>
-              <div><div className="font-display text-lg font-semibold">{assessor ? `المقيّم: ${assessor.name}` : 'بانتظار إسناد مقيّم معتمد'}</div><div className="text-sm text-muted">{assessor ? 'يراجع إجاباتك وأدلتك عاملاً عاملاً، وقد يطلب استيضاحات.' : 'يُسند الطلب عادة خلال يومي عمل.'}</div></div>
+              <div className="grid size-14 place-items-center rounded-2xl bg-violet-50 text-violet-700">{a.assessorId ? <UserCheck className="size-6" /> : <Hourglass className="size-6" />}</div>
+              <div><div className="font-display text-lg font-semibold">{a.assessorId ? 'طلبكم لدى خبير معتمد' : 'بانتظار إسناد خبير معتمد'}</div><div className="text-sm text-muted">{a.assessorId ? 'يراجع إجاباتك وأدلتك معياراً معياراً، وقد يطلب استيضاحات.' : 'يُسند الطلب عادة خلال يومي عمل.'}</div></div>
             </Card>
           )}
           {['DESK_COMPLETED', 'VERIFICATION', 'CERTIFIED'].includes(a.status) && (
@@ -72,9 +71,10 @@ export default async function Page({ params, searchParams }: { params: Promise<{
               <ButtonLink href={`${base}/result`} variant="lime">عرض التفاصيل</ButtonLink>
             </Card>
           )}
-          {a.status !== 'AWAITING_PAYMENT' && <GapPanel id={id} initial={(a.aiGaps as unknown as GapAnalysis) ?? null} canRun={editable} aiLive={ai.live} limit={5} />}
+          {editable && <ReadinessPanel p={p} base={base} openRequests={open.length} limit={5} />}
         </div>
         <div className="space-y-6">
+          <TeamCard a={a} />
           <Card className="p-6">
             <CardTitle title="ملخص الملف" />
             <div className="mt-5 space-y-4">

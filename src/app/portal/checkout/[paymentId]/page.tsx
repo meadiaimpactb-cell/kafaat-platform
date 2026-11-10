@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { AlertTriangle, Clock, Landmark, Lock, ShieldCheck } from 'lucide-react';
 import { db, payments, assessments, coupons } from '@/db';
-import { requireUser } from '@/lib/auth';
+import { requireOrgUser, ownsOrg } from '@/lib/auth';
 import { getGateways, GATEWAY_INFO } from '@/lib/payments';
 import { getSetting } from '@/lib/settings';
 import { PageHeader, Card, Button, ButtonLink } from '@/components/ui';
@@ -14,9 +14,9 @@ import { CouponForm, CheckoutForm, ReceiptForm } from '@/components/portal/check
 export const metadata = { title: 'الدفع' };
 export default async function Page({ params, searchParams }: { params: Promise<{ paymentId: string }>; searchParams: Promise<{ bank?: string; failed?: string; error?: string }> }) {
   const { paymentId } = await params; const sp = await searchParams;
-  const u = await requireUser(['ORG_USER']);
+  const u = await requireOrgUser();
   const pay = (await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1))[0];
-  if (!pay || pay.orgId !== u.orgId) notFound();
+  if (!pay || !ownsOrg(u, pay.orgId)) notFound();
   const a = pay.assessmentId ? (await db.select().from(assessments).where(eq(assessments.id, pay.assessmentId)).limit(1))[0] : null;
   if (pay.status === 'PAID') redirect(pay.product === 'CERTIFICATE' ? `/portal/assessments/${pay.assessmentId}` : `/portal/assessments/${pay.assessmentId}/verification`);
   const coupon = pay.couponId ? (await db.select().from(coupons).where(eq(coupons.id, pay.couponId)).limit(1))[0] : null;
@@ -27,7 +27,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
 
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader eyebrow={isVisit ? 'زيارة التحقق' : 'الخطوة 2 من 7'} title="إتمام الدفع" subtitle={isVisit ? 'بعد الدفع تُجدول زيارة المستشار الميدانية لتوثيق النتيجة.' : 'بعد الدفع مباشرة تُفتح لك الأسئلة ورفع الملفات.'} />
+      <PageHeader eyebrow={isVisit ? 'زيارة التحقق' : 'الخطوة 2 من 7'} title="إتمام الدفع" subtitle={isVisit ? 'بعد الدفع تُجدول زيارة الخبير الميدانية لتوثيق النتيجة.' : 'بعد الدفع مباشرة تُفتح لك الأسئلة ورفع الملفات.'} />
       {sp.failed && pay.status === 'FAILED' && (
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-rose-50 p-4 text-rose-800 ring-1 ring-rose-200">
           <div className="flex items-center gap-2"><AlertTriangle className="size-5" /> لم تكتمل عملية الدفع. لم يُخصم أي مبلغ.</div>

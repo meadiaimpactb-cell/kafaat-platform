@@ -10,7 +10,7 @@ import { TRACK_LABEL } from '@/lib/domain';
 export const metadata = { title: 'طلبات التقييم' };
 export default async function Page() {
   const u = await requireUser(['ASSESSOR', 'SUPER_ADMIN', 'ACCOUNT_MANAGER']);
-  const rows = await db.select({ a: assessments, org: organizations.name }).from(assessments).innerJoin(organizations, eq(organizations.id, assessments.orgId)).where(or(eq(assessments.assessorId, u.id), eq(assessments.secondAssessorId, u.id))).orderBy(desc(assessments.updatedAt));
+  const rows = await db.select({ a: assessments, org: organizations.name }).from(assessments).innerJoin(organizations, eq(organizations.id, assessments.orgId)).where(or(eq(assessments.assessorId, u.id), eq(assessments.secondAssessorId, u.id), eq(assessments.verifierId, u.id))).orderBy(desc(assessments.updatedAt));
   return (
     <div>
       <PageHeader title="طلبات التقييم المسندة إليّ" />

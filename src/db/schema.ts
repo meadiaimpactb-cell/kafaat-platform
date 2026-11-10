@@ -19,7 +19,10 @@ export const AI_STATUSES = ['PENDING', 'ANALYZING', 'DONE', 'FAILED', 'SKIPPED']
 export const PHASES = ['DESK', 'VERIFIED'] as const;
 export const PRODUCTS = ['CERTIFICATE', 'VERIFICATION_VISIT'] as const;
 export const PAYMENT_STATUSES = ['PENDING', 'AWAITING_APPROVAL', 'PAID', 'FAILED', 'CANCELLED', 'REFUNDED'] as const;
-export const VISIT_STATUSES = ['REQUESTED', 'AWAITING_PAYMENT', 'PAID', 'SCHEDULED', 'COMPLETED', 'CANCELLED'] as const;
+export const VISIT_STATUSES = ['REQUESTED', 'AWAITING_PAYMENT', 'PAID', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const;
+export const VERIFICATION_STATUSES = ['UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED'] as const;
+export const MSG_ROLES = ['ORG', 'EXPERT', 'STAFF'] as const;
+export const FOLLOWUP_STATUSES = ['NONE', 'DRAFT', 'PUBLISHED'] as const;
 export const CERT_TYPES = ['UNVERIFIED', 'VERIFIED'] as const;
 export const CERT_STATUSES = ['ACTIVE', 'REVOKED', 'EXPIRED'] as const;
 
@@ -84,11 +87,80 @@ export const organizations = mysqlTable('organizations', {
   description: text('description'),
   contactName: varchar('contact_name', { length: 160 }),
   contactTitle: varchar('contact_title', { length: 120 }),
+  // بيانات الترخيص والتفويض (كما تطلبها منصات المانحين والجهات الإشرافية)
+  licenseIssuer: varchar('license_issuer', { length: 160 }), // جهة الترخيص
+  licenseIssueDate: datetime('license_issue_date', { mode: 'date' }),
+  licenseExpiry: datetime('license_expiry', { mode: 'date' }),
+  nationalAddress: varchar('national_address', { length: 20 }), // العنوان الوطني المختصر
+  repName: varchar('rep_name', { length: 160 }), // الممثل المفوض
+  repTitle: varchar('rep_title', { length: 120 }),
+  repPhone: varchar('rep_phone', { length: 30 }),
+  repEmail: varchar('rep_email', { length: 190 }),
   profileCompleted: boolean('profile_completed').notNull().default(false),
+  verificationStatus: mysqlEnum('verification_status', VERIFICATION_STATUSES).notNull().default('UNVERIFIED'),
+  verificationNote: text('verification_note'),
+  submittedForVerificationAt: datetime('submitted_for_verification_at', { mode: 'date' }),
+  verifiedAt: datetime('verified_at', { mode: 'date' }),
+  verifiedById: fk('verified_by_id'),
+  createdById: fk('created_by_id'),
   accountManagerId: fk('account_manager_id'),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+// عضوية المستخدم في الجهات: حساب واحد يدير أكثر من جهة (users.orgId = الجهة النشطة حالياً)
+export const organizationMembers = mysqlTable('organization_members', {
+  id: id(),
+  orgId: fk('org_id').notNull(),
+  userId: fk('user_id').notNull(),
+  role: varchar('role', { length: 20 }).notNull().default('OWNER'), // OWNER | MEMBER
+  createdAt: createdAt(),
+}, t => [uniqueIndex('orgmem_uq').on(t.orgId, t.userId), index('orgmem_user_idx').on(t.userId)]);
+
+export const ORG_DOC_KINDS = ['LICENSE', 'BYLAWS', 'AUTH_LETTER', 'BOARD', 'TAX_CERT', 'OTHER'] as const;
+export const orgDocuments = mysqlTable('org_documents', {
+  id: id(),
+  orgId: fk('org_id').notNull(),
+  kind: mysqlEnum('kind', ORG_DOC_KINDS).notNull(),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  storedPath: varchar('stored_path', { length: 255 }).notNull(),
+  mimeType: varchar('mime_type', { length: 120 }).notNull(),
+  size: int('size').notNull(),
+  sha256: varchar('sha256', { length: 64 }).notNull(),
+  uploadedById: fk('uploaded_by_id'),
+  createdAt: createdAt(),
+}, t => [index('orgdoc_org_idx').on(t.orgId)]);
+
+// الدخول الاجتماعي: ربط حساب المنصة بهوية لدى Google أو Facebook أو LinkedIn
+export const userIdentities = mysqlTable('user_identities', {
+  id: id(),
+  userId: fk('user_id').notNull(),
+  provider: varchar('provider', { length: 20 }).notNull(),
+  providerUserId: varchar('provider_user_id', { length: 120 }).notNull(),
+  email: varchar('email', { length: 190 }),
+  createdAt: createdAt(),
+}, t => [uniqueIndex('identity_uq').on(t.provider, t.providerUserId), index('identity_user_idx').on(t.userId)]);
+
+// رموز استعادة كلمة المرور (تُخزَّن مجزّأة ولا تُستخدم إلا مرة واحدة)
+export const passwordResets = mysqlTable('password_resets', {
+  id: id(),
+  userId: fk('user_id').notNull(),
+  tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+  expiresAt: datetime('expires_at', { mode: 'date' }).notNull(),
+  usedAt: datetime('used_at', { mode: 'date' }),
+  createdAt: createdAt(),
+}, t => [uniqueIndex('pwreset_token_uq').on(t.tokenHash), index('pwreset_user_idx').on(t.userId)]);
+
+// سجل الرسائل البريدية الصادرة (يُحفظ دائماً، ويُرسل عبر SMTP عند ضبطه)
+export const emailOutbox = mysqlTable('email_outbox', {
+  id: id(),
+  toEmail: varchar('to_email', { length: 400 }).notNull(),
+  subject: varchar('subject', { length: 250 }).notNull(),
+  html: text('html').notNull(),
+  status: mysqlEnum('status', ['SENT', 'QUEUED', 'FAILED']).notNull().default('QUEUED'),
+  error: text('error'),
+  createdAt: createdAt(),
+}, t => [index('outbox_created_idx').on(t.createdAt)]);
 
 // ---------------------------------------------------------------- المنهجية
 export const factors = mysqlTable('factors', {
@@ -145,6 +217,11 @@ export const assessments = mysqlTable('assessments', {
   progress: int('progress').notNull().default(0),
   assessorId: fk('assessor_id'),
   secondAssessorId: fk('second_assessor_id'),
+  verifierId: fk('verifier_id'), // خبير التحقق (مرحلة التقرير الموثق)
+  revealAssessor: boolean('reveal_assessor').notNull().default(false), // إظهار بيانات الخبير المراجع للجهة
+  revealVerifier: boolean('reveal_verifier').notNull().default(true), // إظهار بيانات خبير التحقق للجهة
+  assessorAssignedAt: datetime('assessor_assigned_at', { mode: 'date' }),
+  verifierAssignedAt: datetime('verifier_assigned_at', { mode: 'date' }),
   managerId: fk('manager_id'),
   aiGaps: json('ai_gaps').$type<Record<string, unknown>>(),
   aiGapsAt: datetime('ai_gaps_at', { mode: 'date' }),
@@ -295,9 +372,42 @@ export const visits = mysqlTable('visits', {
   sampleResult: json('sample_result').$type<{ checked: number; matched: number; notes?: string }>(),
   notes: text('notes'),
   completedAt: datetime('completed_at', { mode: 'date' }),
+  orgConfirmedAt: datetime('org_confirmed_at', { mode: 'date' }), // تأكيد الجهة للموعد
+  siteContactName: varchar('site_contact_name', { length: 160 }), // من يستقبل الخبير في الجهة
+  siteContactPhone: varchar('site_contact_phone', { length: 30 }),
+  rescheduleCount: int('reschedule_count').notNull().default(0),
+  cancelReason: varchar('cancel_reason', { length: 255 }),
+  startedAt: datetime('started_at', { mode: 'date' }),
+  // التقرير التعقيبي (يُضمَّن في رسوم التوثيق)
+  followupStatus: mysqlEnum('followup_status', FOLLOWUP_STATUSES).notNull().default('NONE'),
+  followup: json('followup').$type<{ summary: string; strengths: string[]; findings: string[]; recommendations: string[] }>(),
+  followupPublishedAt: datetime('followup_published_at', { mode: 'date' }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, t => [uniqueIndex('visit_assess_uq').on(t.assessmentId)]);
+
+export const visitEvents = mysqlTable('visit_events', {
+  id: id(),
+  visitId: fk('visit_id').notNull(),
+  type: varchar('type', { length: 30 }).notNull(), // requested | scheduled | rescheduled | confirmed | proposed | started | completed | cancelled | followup
+  actorId: fk('actor_id'),
+  actorRole: varchar('actor_role', { length: 20 }),
+  note: text('note'),
+  data: json('data').$type<Record<string, unknown>>(),
+  createdAt: createdAt(),
+}, t => [index('vevent_visit_idx').on(t.visitId)]);
+
+// المراسلة بين الجهة والخبراء المراجعين (هوية الخبير لا تظهر للجهة)
+export const messages = mysqlTable('messages', {
+  id: id(),
+  assessmentId: fk('assessment_id').notNull(),
+  senderRole: mysqlEnum('sender_role', MSG_ROLES).notNull(),
+  senderId: fk('sender_id'),
+  body: text('body').notNull(),
+  orgReadAt: datetime('org_read_at', { mode: 'date' }),
+  staffReadAt: datetime('staff_read_at', { mode: 'date' }),
+  createdAt: createdAt(),
+}, t => [index('msg_assess_idx').on(t.assessmentId, t.createdAt)]);
 
 export const certificates = mysqlTable('certificates', {
   id: id(),

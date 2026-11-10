@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import { eq, sql } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 import crypto from 'crypto';
-import { db, factors, documentRequirements, settings, paymentGateways, users, organizations, assessments, answers, factorReviews, documents, coupons, payments, invoices, certificates, visits, counters, activityLogs, notifications, infoRequests, sessions } from './index';
+import { db, factors, documentRequirements, settings, paymentGateways, users, organizations, assessments, answers, factorReviews, documents, coupons, payments, invoices, certificates, visits, counters, activityLogs, notifications, infoRequests, sessions, organizationMembers, orgDocuments, visitEvents, messages, userIdentities, passwordResets, emailOutbox } from './index';
 import FACTORS from './data/factors.json';
 import { evaluate, snapshot, trackOf, FACTOR_IDS } from '../lib/scoring';
 
@@ -32,20 +32,20 @@ const REQS = [
   ['INCENTIVES_POLICY', 'سياسة الحوافز ومنع الانتقاء', 'معايير قبول المستفيدين وسياسات الحوافز التي تمنع انتقاء الحالات السهلة', false, ['EMERGING', 'MEDIUM', 'LARGE'], ['F106', 'F020'], 'حوكمة'],
 ] as const;
 
-const PERMS_MANAGER = ['orgs.view', 'orgs.manage', 'assessments.view', 'assessments.assign', 'assessments.manage', 'visits.manage', 'certificates.issue', 'payments.view', 'payments.approve', 'coupons.manage', 'reports.view'];
+const PERMS_MANAGER = ['orgs.view', 'orgs.manage', 'assessments.view', 'assessments.assign', 'assessments.manage', 'visits.manage', 'certificates.issue', 'payments.view', 'payments.approve', 'coupons.manage', 'reports.view', 'orgs.verify'];
 
 async function main() {
   console.log('… تنظيف الجداول');
-  for (const t of [notifications, activityLogs, infoRequests, certificates, visits, invoices, payments, factorReviews, documents, answers, assessments, sessions, users, organizations, coupons, documentRequirements, factors, paymentGateways, settings, counters]) await db.delete(t);
+  for (const t of [emailOutbox, passwordResets, userIdentities, messages, visitEvents, orgDocuments, organizationMembers, notifications, activityLogs, infoRequests, certificates, visits, invoices, payments, factorReviews, documents, answers, assessments, sessions, users, organizations, coupons, documentRequirements, factors, paymentGateways, settings, counters]) await db.delete(t);
 
-  console.log('… المنهجية: العوامل الـ56');
+  console.log('… المنهجية: معايير التقييم');
   await db.insert(factors).values((FACTORS as any[]).map(f => ({ id: f.id, name: f.name, nameEn: f.nameEn, score: f.score, tier: f.tier, rank: f.rank, type: f.type, group: f.group, axis: f.axis, weight: f.weight, roles: f.roles, section: f.section,
     question: f.question, definition: f.definition, effect: f.effect, asks: f.asks, evidence: f.evidence, calc: f.calc, levels: f.levels, rule: f.rule, flags: f.flags, example: f.example, sortOrder: f.sortOrder })));
   await db.insert(documentRequirements).values(REQS.map((r, i) => ({ code: r[0], title: r[1], description: r[2], required: r[3], tracks: [...r[4]], factorIds: [...r[5]], category: r[6], sortOrder: i + 1 })));
 
   console.log('… الإعدادات والبوابات');
   await db.insert(settings).values([
-    { key: 'pricing', value: { certificate: 1000, visit: 5000, currency: 'SAR', vatRate: 15, pricesIncludeVat: true } },
+    { key: 'pricing', value: { certificate: 500, visit: 5000, currency: 'SAR', vatRate: 15, pricesIncludeVat: true } },
     { key: 'bank', value: { bankName: 'مصرف الراجحي', accountName: 'كفاءة الأثر', iban: 'SA00 0000 0000 0000 0000 0000', note: 'يُرجى كتابة رقم الدفعة في وصف التحويل' } },
   ]);
   await db.insert(paymentGateways).values([
@@ -68,12 +68,12 @@ async function main() {
   const admin = await U('admin@kafaat.sa', 'Admin@12345', 'مدير المنصة', 'SUPER_ADMIN', { phone: '0500000001' });
   const manager = await U('manager@kafaat.sa', 'Manager@12345', 'سارة العتيبي', 'ACCOUNT_MANAGER', { permissions: PERMS_MANAGER, phone: '0500000002' });
   const assessor = await U('assessor@kafaat.sa', 'Assessor@12345', 'د. خالد الحربي', 'ASSESSOR', { isFieldVerifier: true, specialties: 'قياس الأثر، التنمية الأسرية' });
-  const assessor2 = await U('assessor2@kafaat.sa', 'Assessor@12345', 'نورة القحطاني', 'ASSESSOR', { specialties: 'التحليل المالي وتحليل الكلفة' });
+  const assessor2 = await U('assessor2@kafaat.sa', 'Assessor@12345', 'نورة القحطاني', 'ASSESSOR', { isFieldVerifier: true, specialties: 'التحليل المالي وتحليل الكلفة' });
 
   const mkOrg = async (o: Record<string, any>) => { const id = createId(); await db.insert(organizations).values({ id, ...o } as any); return id; };
   const year = new Date().getFullYear() - 1;
 
-  // 1) جهة لدى المقيّم
+  // 1) جهة لدى الخبير المراجع
   const org1 = await mkOrg({ name: 'جمعية النماء للتمكين الأسري', licenseNo: '1234', orgType: 'جمعية أهلية', region: 'القصيم', city: 'بريدة', field: 'التنمية الأسرية', foundedYear: 2012, email: 'info@nama-demo.sa', phone: '0163000000',
     fiscalYearEnd: '12-31', lastYearExpenses: 12_400_000, lastYearRevenue: 13_100_000, programExpenses: 10_200_000, beneficiariesCount: 4200, programsCount: 6, employeesCount: 38, volunteersCount: 210, track: 'MEDIUM',
     description: 'جهة تجريبية للتوضيح (بيانات افتراضية): تمكين الأسر اقتصادياً عبر التدريب والتوظيف والمشروعات الصغيرة.', contactName: 'عبدالله السالم', contactTitle: 'المدير التنفيذي', profileCompleted: true, accountManagerId: manager });
@@ -100,7 +100,36 @@ async function main() {
   const org5 = await mkOrg({ name: 'جمعية جديدة (لم تكتمل بياناتها)', profileCompleted: false });
   await U('new@demo.sa', 'Org@12345', 'مستخدم جديد', 'ORG_USER', { orgId: org5, orgRole: 'OWNER' });
 
+
+  // بيانات الترخيص والتفويض وحالات التوثيق + عضويات الحسابات (حساب واحد قد يدير أكثر من جهة)
+  const org6 = await mkOrg({ name: 'جمعية الغد للتطوع', licenseNo: '7788', orgType: 'جمعية أهلية', region: 'المدينة المنورة', city: 'المدينة المنورة', field: 'العمل التطوعي', profileCompleted: false });
+  const lic = (i: number) => ({
+    licenseIssuer: 'المركز الوطني لتنمية القطاع غير الربحي', licenseIssueDate: new Date(Date.UTC(2014 + i, 0, 15)), licenseExpiry: new Date(Date.UTC(year + 3, 11, 31)),
+    address: 'حي النخيل، طريق الملك فهد', nationalAddress: 'RRRD2929', repTitle: 'المدير التنفيذي', repEmail: 'rep@demo.sa', repPhone: '0550000000',
+  });
+  const orgUser = async (email: string) => (await db.select().from(users).where(eq(users.email, email)))[0].id;
+  const addOrgDocs = async (orgId: string, uploader: string, kinds: string[]) => {
+    for (const k of kinds) {
+      const rel = path.join('org', orgId, `${createId()}.txt`); const body = `مستند تجريبي (${k}) — ملف توضيحي للاختبار\n`;
+      fs.mkdirSync(path.join(path.resolve(process.env.STORAGE_DIR || './storage/uploads'), 'org', orgId), { recursive: true }); fs.writeFileSync(path.join(path.resolve(process.env.STORAGE_DIR || './storage/uploads'), rel), body);
+      await db.insert(orgDocuments).values({ orgId, kind: k as 'LICENSE', fileName: `${k}.txt`, storedPath: rel, mimeType: 'text/plain', size: Buffer.byteLength(body), sha256: crypto.createHash('sha256').update(body).digest('hex'), uploadedById: uploader });
+    }
+  };
+  const ownerEmails: [string, string][] = [['org@demo.sa', org1], ['org2@demo.sa', org2], ['org3@demo.sa', org3], ['org4@demo.sa', org4], ['new@demo.sa', org5]];
+  for (const [e, o] of ownerEmails) await db.insert(organizationMembers).values({ orgId: o, userId: await orgUser(e), role: 'OWNER' });
+  await db.insert(organizationMembers).values({ orgId: org6, userId: await orgUser('org@demo.sa'), role: 'OWNER' }); // حساب واحد، جهتان
+  await db.update(organizations).set({ createdById: await orgUser('org@demo.sa') }).where(eq(organizations.id, org6));
+  const verifiedAt = new Date(Date.now() - 30 * 864e5);
+  const DOCS = ['LICENSE', 'BYLAWS', 'AUTH_LETTER'];
+  for (const [i, o] of [org1, org2, org3].entries()) {
+    await db.update(organizations).set({ ...lic(i), verificationStatus: 'VERIFIED', verifiedAt, verifiedById: admin, verificationNote: 'اكتمل التحقق من الترخيص والمستندات' }).where(eq(organizations.id, o));
+    await addOrgDocs(o, await orgUser(['org@demo.sa', 'org2@demo.sa', 'org3@demo.sa'][i]), DOCS);
+  }
+  await db.update(organizations).set({ ...lic(5), verificationStatus: 'PENDING', submittedForVerificationAt: new Date(Date.now() - 864e5) }).where(eq(organizations.id, org4));
+  await addOrgDocs(org4, await orgUser('org4@demo.sa'), DOCS);
+
   console.log('… طلبات التقييم التجريبية');
+  const ago0 = (d: number) => new Date(Date.now() - d * 864e5);
   const num = (n: number) => `KA-${year + 1}-${String(n).padStart(4, '0')}`;
   const ansStatus = (l: number) => (l >= 3 ? 'YES' : l >= 1 ? 'PARTIAL' : 'NONE');
   const fillAnswers = async (aid: string, L: Record<string, number>) => {
@@ -122,15 +151,19 @@ async function main() {
   const paid = async (orgId: string, aid: string, product: 'CERTIFICATE' | 'VERIFICATION_VISIT', total: number, n: number) => {
     const pid = createId(); const sub = Math.round((total / 1.15) * 100) / 100;
     await db.insert(payments).values({ id: pid, number: `PAY-${year + 1}-${String(n).padStart(4, '0')}`, orgId, assessmentId: aid, product, listPrice: total, discount: 0, subtotal: sub, vat: Math.round((total - sub) * 100) / 100, total, gateway: 'sandbox', status: 'PAID', paidAt: new Date(), providerRef: 'sandbox_' + n });
-    await db.insert(invoices).values({ number: `INV-${year + 1}-${String(n).padStart(4, '0')}`, paymentId: pid, data: { seller: { name: 'كفاءة الأثر' }, buyer: { name: 'جهة تجريبية' }, items: [{ description: product === 'CERTIFICATE' ? 'رسوم التقييم وشهادة كفاءة الأثر' : 'زيارة التحقق للشهادة الموثقة', qty: 1, listPrice: total, discount: 0, subtotal: sub, vat: Math.round((total - sub) * 100) / 100, total }], vatRate: 15, includesVat: true, currency: 'SAR' } });
+    await db.insert(invoices).values({ number: `INV-${year + 1}-${String(n).padStart(4, '0')}`, paymentId: pid, data: { seller: { name: 'كفاءة الأثر' }, buyer: { name: 'جهة تجريبية' }, items: [{ description: product === 'CERTIFICATE' ? 'رسوم التقييم المهني وشهادة كفاءة الأثر' : 'زيارة التحقق للشهادة الموثقة', qty: 1, listPrice: total, discount: 0, subtotal: sub, vat: Math.round((total - sub) * 100) / 100, total }], vatRate: 15, includesVat: true, currency: 'SAR' } });
   };
 
-  // التقييم 1: لدى المقيّم، نصف العوامل مقدّرة
+  // التقييم 1: لدى الخبير المراجع، نصف المعايير مقدّرة
   const a1 = createId();
-  await db.insert(assessments).values({ id: a1, number: num(1), orgId: org1, cycleYear: year, status: 'UNDER_REVIEW', track: 'MEDIUM', expenses: 12_400_000, coverage: 0.55, progress: 100, assessorId: assessor, managerId: manager, submittedAt: new Date(Date.now() - 4 * 864e5), reviewStartedAt: new Date(Date.now() - 2 * 864e5) });
+  await db.insert(assessments).values({ id: a1, number: num(1), orgId: org1, cycleYear: year, status: 'UNDER_REVIEW', track: 'MEDIUM', expenses: 12_400_000, coverage: 0.55, progress: 100, assessorId: assessor, secondAssessorId: assessor2, revealAssessor: false, managerId: manager, submittedAt: new Date(Date.now() - 4 * 864e5), reviewStartedAt: new Date(Date.now() - 2 * 864e5) });
   await fillAnswers(a1, EX_L); await addDocs(a1, ['ANNUAL_REPORT', 'AUDITED_FS', 'PROGRAM_COSTS', 'OUTCOME_DEFINITION', 'THEORY_OF_CHANGE', 'BASELINE_DATA', 'BENEFICIARY_REGISTER', 'DATA_SYSTEM', 'PORTFOLIO', 'IMPACT_REPORT'], await user('org@demo.sa'));
   await db.insert(factorReviews).values(FACTOR_IDS.map((f, i) => ({ assessmentId: a1, factorId: f, phase: 'DESK' as const, aiLevel: Math.min(3, EX_L[f]), aiConfidence: 0.6, aiRationale: 'مقترح آلي مبني على الوثائق المرفوعة (بيانات تجريبية)', level: i % 2 === 0 ? EX_L[f] : null, reviewerId: i % 2 === 0 ? assessor : null, justification: i % 2 === 0 ? 'تحقق المقيّم من الدليل المرفوع' : null })));
-  await paid(org1, a1, 'CERTIFICATE', 1000, 1);
+  await paid(org1, a1, 'CERTIFICATE', 500, 1);
+  await db.insert(messages).values([
+    { assessmentId: a1, senderRole: 'ORG', senderId: await orgUser('org@demo.sa'), body: 'هل يكفي التقرير السنوي المرفوع لإثبات تعريف النتائج، أم تفضلون وثيقة مستقلة؟', orgReadAt: ago0(3), staffReadAt: ago0(2) },
+    { assessmentId: a1, senderRole: 'EXPERT', senderId: assessor, body: 'يفضل رفع وثيقة مستقلة تحدد وحدة النتيجة والعتبة والمستهدف لكل برنامج رئيس، ويمكنكم الاستفادة من نموذج وثيقة تعريف النتائج.', staffReadAt: ago0(1) },
+  ]);
 
   // التقييم 2: نتيجة غير موثقة + زيارة مدفوعة
   const L2 = { ...EX_L, F001: 3, F010: 3, F049: 3, F046: 3 };
@@ -140,7 +173,7 @@ async function main() {
     submittedAt: new Date(Date.now() - 20 * 864e5), deskCompletedAt: new Date(Date.now() - 6 * 864e5), deskResult: s2 as any, deskScore: r2.total, deskLevel: r2.level, assessorSummary: 'ممارسات قياس قائمة ونتائج محسوبة لأغلب البرامج، مع حاجة إلى تحقق مستقل وتوسيع القياس التتبعي.' });
   await fillAnswers(a2, L2); await addDocs(a2, ['ANNUAL_REPORT', 'AUDITED_FS', 'PROGRAM_COSTS', 'OUTCOME_DEFINITION', 'THEORY_OF_CHANGE', 'BASELINE_DATA', 'BENEFICIARY_REGISTER', 'DATA_SYSTEM', 'PORTFOLIO'], await user('org2@demo.sa'));
   await db.insert(factorReviews).values(FACTOR_IDS.map(f => ({ assessmentId: a2, factorId: f, phase: 'DESK' as const, level: (L2 as Record<string, number>)[f], aiLevel: (L2 as Record<string, number>)[f], reviewerId: assessor, justification: 'مثبت بالوثائق المرفوعة (تجريبي)' })));
-  await paid(org2, a2, 'CERTIFICATE', 1000, 2); await paid(org2, a2, 'VERIFICATION_VISIT', 5000, 3);
+  await paid(org2, a2, 'CERTIFICATE', 500, 2); await paid(org2, a2, 'VERIFICATION_VISIT', 5000, 3);
   await db.insert(visits).values({ assessmentId: a2, status: 'PAID', preferredDates: 'الأسبوع الأول من الشهر القادم، صباحاً', location: 'مقر الجمعية — الرياض' });
   await db.insert(certificates).values({ number: `KAU-${year + 1}-0001`, assessmentId: a2, orgId: org2, type: 'UNVERIFIED', score: r2.total, level: r2.level, coverage: 0.7, periodYear: year, validUntil: new Date(Date.UTC(year + 1, 11, 31, 20, 59, 59)), verifyCode: 'DEMOSANA01', snapshot: { ...s2, orgName: 'جمعية سنا للتنمية المجتمعية', orgCity: 'الرياض', field: 'التمكين الاقتصادي والتوظيف', assessmentNumber: num(2) } as any });
 
@@ -148,18 +181,24 @@ async function main() {
   const L3 = Object.fromEntries(FACTOR_IDS.map(f => [f, Math.min(4, EX_L[f] + 1)]));
   L3.F003 = 3; L3.F006 = 3; const r3 = evaluate(L3, 41_000_000); const s3 = snapshot(r3);
   const a3 = createId();
-  await db.insert(assessments).values({ id: a3, number: num(3), orgId: org3, cycleYear: year, status: 'CERTIFIED', track: 'LARGE', expenses: 41_000_000, coverage: 0.82, progress: 100, assessorId: assessor2, managerId: manager,
+  await db.insert(assessments).values({ id: a3, number: num(3), orgId: org3, cycleYear: year, status: 'CERTIFIED', track: 'LARGE', expenses: 41_000_000, coverage: 0.82, progress: 100, assessorId: assessor2, verifierId: assessor, revealAssessor: false, revealVerifier: true, managerId: manager,
     submittedAt: new Date(Date.now() - 60 * 864e5), deskCompletedAt: new Date(Date.now() - 40 * 864e5), certifiedAt: new Date(Date.now() - 10 * 864e5), deskResult: s3 as any, deskScore: r3.total, deskLevel: r3.level, finalResult: s3 as any, finalScore: r3.total, finalLevel: r3.level });
   await fillAnswers(a3, L3);
   await db.insert(factorReviews).values(FACTOR_IDS.flatMap(f => (['DESK', 'VERIFIED'] as const).map(phase => ({ assessmentId: a3, factorId: f, phase, level: L3[f], reviewerId: assessor2, justification: 'متحقق منه' }))));
-  await paid(org3, a3, 'CERTIFICATE', 1000, 4); await paid(org3, a3, 'VERIFICATION_VISIT', 5000, 5);
-  await db.insert(visits).values({ assessmentId: a3, consultantId: assessor, status: 'COMPLETED', scheduledAt: new Date(Date.now() - 15 * 864e5), completedAt: new Date(Date.now() - 14 * 864e5), location: 'مقر الجمعية — الدمام', sampleResult: { checked: 20, matched: 19, notes: 'حالة واحدة تنقصها وثيقة المتابعة' }, notes: 'تطابقت الأدلة مع الممارسة الفعلية.' });
+  await paid(org3, a3, 'CERTIFICATE', 500, 4); await paid(org3, a3, 'VERIFICATION_VISIT', 5000, 5);
+  const [v3] = await db.insert(visits).values({ assessmentId: a3, consultantId: assessor, status: 'COMPLETED', orgConfirmedAt: new Date(Date.now() - 16 * 864e5), siteContactName: 'عبدالعزيز الحربي', siteContactPhone: '0551112222', startedAt: new Date(Date.now() - 15 * 864e5), followupStatus: 'PUBLISHED', followupPublishedAt: new Date(Date.now() - 13 * 864e5), followup: { summary: 'تطابقت السجلات الميدانية مع الملفات المرفوعة في معظم الحالات المفحوصة، مع ملاحظات محدودة على توثيق المتابعة بعد انتهاء التدخل.', strengths: ['نظام بيانات موحد بصلاحيات واضحة', 'قرارات المجلس مرتبطة بنتائج القياس'], findings: ['حالة واحدة من أصل 20 دون توثيق المتابعة بعد 6 أشهر'], recommendations: ['توثيق قياس المتابعة لكل برنامج رئيس', 'أتمتة تقرير سجل المستفيدين الشهري'] }, scheduledAt: new Date(Date.now() - 15 * 864e5), completedAt: new Date(Date.now() - 14 * 864e5), location: 'مقر الجمعية — الدمام', sampleResult: { checked: 20, matched: 19, notes: 'حالة واحدة تنقصها وثيقة المتابعة' }, notes: 'تطابقت الأدلة مع الممارسة الفعلية.' }).$returningId();
+    const ago = (d: number) => new Date(Date.now() - d * 864e5);
+  await db.insert(visitEvents).values([
+    { visitId: v3.id, type: 'requested', actorId: await orgUser('org3@demo.sa'), actorRole: 'ORG_USER', createdAt: ago(25) }, { visitId: v3.id, type: 'scheduled', actorId: manager, actorRole: 'ACCOUNT_MANAGER', createdAt: ago(18) },
+    { visitId: v3.id, type: 'confirmed', actorId: await orgUser('org3@demo.sa'), actorRole: 'ORG_USER', createdAt: ago(16) }, { visitId: v3.id, type: 'started', actorId: assessor, actorRole: 'ASSESSOR', createdAt: ago(15) },
+    { visitId: v3.id, type: 'completed', actorId: assessor, actorRole: 'ASSESSOR', createdAt: ago(14) }, { visitId: v3.id, type: 'followup', actorId: assessor, actorRole: 'ASSESSOR', createdAt: ago(13) },
+  ] as any);
   await db.insert(certificates).values({ number: `KAC-${year + 1}-0001`, assessmentId: a3, orgId: org3, type: 'VERIFIED', score: r3.total, level: r3.level, coverage: 0.82, periodYear: year, validUntil: new Date(Date.UTC(year + 1, 11, 31, 20, 59, 59)), verifyCode: 'DEMOATHAR1', snapshot: { ...s3, orgName: 'جمعية أثر الخير الصحية', orgCity: 'الدمام', field: 'الصحة', assessmentNumber: num(3) } as any });
 
   // التقييم 4: بانتظار الدفع
   const a4 = createId();
   await db.insert(assessments).values({ id: a4, number: num(4), orgId: org4, cycleYear: year, status: 'AWAITING_PAYMENT', track: 'EMERGING', expenses: 1_900_000 });
-  await db.insert(payments).values({ number: `PAY-${year + 1}-0006`, orgId: org4, assessmentId: a4, product: 'CERTIFICATE', listPrice: 1000, discount: 0, subtotal: 869.57, vat: 130.43, total: 1000 });
+  await db.insert(payments).values({ number: `PAY-${year + 1}-0006`, orgId: org4, assessmentId: a4, product: 'CERTIFICATE', listPrice: 500, discount: 0, subtotal: 434.78, vat: 65.22, total: 500 });
 
   await db.insert(counters).values([{ key: `PAY-${year + 1}`, value: 6 }, { key: `INV-${year + 1}`, value: 5 }, { key: `KA-${year + 1}`, value: 4 }, { key: `KAU-${year + 1}`, value: 1 }, { key: `KAC-${year + 1}`, value: 1 }]);
   await db.insert(activityLogs).values([

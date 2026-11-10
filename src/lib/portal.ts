@@ -11,6 +11,6 @@ export const RESULT_STATUSES = ['DESK_COMPLETED', 'VERIFICATION', 'CERTIFIED'];
 export const loadOwn = cache(async (id: string) => {
   const u = await requireUser(['ORG_USER']);
   const a = await getAssessment(id);
-  if (!a || a.orgId !== u.orgId) notFound();
+  if (!a || !u.orgIds.includes(a.orgId)) notFound();
   return { u, a, editable: EDITABLE_STATUSES.includes(a.status), hasResult: RESULT_STATUSES.includes(a.status) };
 });

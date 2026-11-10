@@ -40,14 +40,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <EfficiencyLabel level={snap.level} score={snap.total} compact qualified={snap.status === 'مؤهل'} />
           </div>
           <div>
-            <h2 className="mb-[3mm] font-display text-[13pt] font-bold">المحاور الأربعة</h2>
-            <table className="w-full border-collapse"><tbody>{Object.entries(AXES).map(([k, ax]) => { const v = k === '3' ? snap.a3adj : snap.axes[k]; return <tr key={k} className="border-b border-line"><td className="py-[2mm]">المحور {k}: {ax.name}</td><td className="w-[60mm] py-[2mm]"><div className="h-[2.5mm] overflow-hidden rounded-full bg-forest-100"><div className="h-full bg-forest-700" style={{ width: `${(v / ax.pts) * 100}%` }} /></div></td><td className="w-[22mm] py-[2mm] text-left num font-bold">{fmtNum(v, 1)} / {ax.pts}</td></tr>; })}</tbody></table>
-            <div className="mt-[2mm] text-[8.5pt] text-muted">معامل التصميم Fd = {fmtNum(snap.Fd, 2)} · معامل الانتقاء Fs = {fmtNum(snap.Fs, 2)} · مؤشر نضج المحركات {fmtNum(snap.dmi, 1)} · الأهلية: {snap.blocks.eligibility}</div>
+            <h2 className="mb-[3mm] font-display text-[13pt] font-bold">مكونات الدرجة</h2>
+            <table className="w-full border-collapse"><tbody>{Object.entries(AXES).map(([k, ax]) => { const v = k === '3' ? snap.a3adj : snap.axes[k]; return <tr key={k} className="border-b border-line"><td className="py-[2mm]">{ax.name}</td><td className="w-[60mm] py-[2mm]"><div className="h-[2.5mm] overflow-hidden rounded-full bg-forest-100"><div className="h-full bg-forest-700" style={{ width: `${(v / ax.pts) * 100}%` }} /></div></td><td className="w-[22mm] py-[2mm] text-left num font-bold">{fmtNum(v, 1)} / {ax.pts}</td></tr>; })}</tbody></table>
           </div>
           {(snap.gateFail.length > 0 || snap.caps.length > 0) && <div><h2 className="mb-[2mm] font-display text-[13pt] font-bold">البوابات والسقوف</h2><ul className="list-inside list-disc">{snap.gateFail.map(([f, l, m]) => <li key={f}>بوابة {nm[f]}: {l} والمطلوب {m}</li>)}{snap.trkFail.map(([f, l, m]) => <li key={f}>متطلب المسار {nm[f]}: {l} والمطلوب {m}</li>)}{snap.caps.map(([x, y, w], i) => <li key={i}>سقف من «{x}» إلى «{y}»: {w}</li>)}</ul></div>}
           {(a.recommendations ?? []).length > 0 && <div><h2 className="mb-[2mm] font-display text-[13pt] font-bold">التوصيات</h2><ol className="list-inside list-decimal space-y-[1mm]">{(a.recommendations ?? []).sort((x, y) => x.priority - y.priority).map((r, i) => <li key={i}>{r.text}</li>)}</ol></div>}
           <div style={{ breakBefore: 'page' }}>
-            <h2 className="mb-[3mm] font-display text-[13pt] font-bold">مستويات العوامل الـ56</h2>
+            <h2 className="mb-[3mm] font-display text-[13pt] font-bold">مستويات المعايير</h2>
             {SECTIONS.map(s => <div key={s.key} className="mb-[4mm]"><div className="mb-[1.5mm] font-bold text-forest-700">{s.title}</div><div className="grid grid-cols-2 gap-x-[6mm] gap-y-[1mm]">{fs.filter(f => f.section === s.key).map(f => <div key={f.id} className="flex items-center gap-[2mm] border-b border-line/70 py-[0.8mm] text-[8.8pt]"><LevelChip level={snap.levels[f.id]} size="sm" /><span className="flex-1">{f.name}</span><span className="ltr text-[7.5pt] text-muted">{f.id}</span></div>)}</div></div>)}
           </div>
         </div>

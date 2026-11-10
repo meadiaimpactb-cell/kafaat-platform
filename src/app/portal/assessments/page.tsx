@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
 import { ClipboardList } from 'lucide-react';
 import { db, assessments } from '@/db';
-import { requireUser } from '@/lib/auth';
+import { requireOrgUser } from '@/lib/auth';
 import { PageHeader, Card, Progress, Empty, Button } from '@/components/ui';
 import { StatusBadge } from '@/components/journey';
 import { createAssessmentRequest } from '@/app/actions/org';
@@ -11,7 +11,7 @@ import { TRACK_LABEL } from '@/lib/domain';
 
 export const metadata = { title: 'طلبات التقييم' };
 export default async function Page() {
-  const u = await requireUser(['ORG_USER']);
+  const u = await requireOrgUser();
   const rows = await db.select().from(assessments).where(eq(assessments.orgId, u.orgId!)).orderBy(desc(assessments.createdAt));
   return (
     <div>

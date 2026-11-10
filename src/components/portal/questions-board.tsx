@@ -71,14 +71,14 @@ export function QuestionsBoard({ assessmentId, editable, factors, initial, secti
         </nav>
         <div className="card space-y-2 p-4 text-xs leading-5 text-muted">
           <div className="flex items-center gap-1.5 font-semibold text-ink"><Lightbulb className="size-4 text-amber-brand" /> نصيحة</div>
-          اختر الحالة الأقرب للواقع، ثم المستوى الذي تراه لجهتك، واكتب الأرقام ومصادرها. المقيّم يعتمد على الأدلة المرفوعة لا على الإجابة وحدها.
+          اختر الحالة الأقرب للواقع، ثم المستوى الذي تراه لجهتك، واكتب الأرقام ومصادرها. الخبير المراجع يعتمد على الأدلة المرفوعة لا على الإجابة وحدها.
         </div>
       </aside>
 
       <div className="min-w-0 space-y-4">
         {!editable && <div className="flex items-center gap-2 rounded-2xl bg-slate-100 p-4 text-sm text-slate-700"><Lock className="size-4" /> الإجابات للعرض فقط في حالة الطلب الحالية.</div>}
         <div className="card flex flex-wrap items-center gap-3 p-3">
-          <div className="relative min-w-52 flex-1"><Search className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث في الأسئلة أو برمز العامل F001" className="input h-10 pr-9" /></div>
+          <div className="relative min-w-52 flex-1"><Search className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="ابحث في الأسئلة أو برمز المعيار F001" className="input h-10 pr-9" /></div>
           <div className="flex rounded-xl bg-forest-50 p-1 text-sm">
             {([['all', 'الكل'], ['todo', 'بلا إجابة'], ['done', 'مُجاب']] as const).map(([k, t]) => <button key={k} onClick={() => setFilter(k)} className={cn('rounded-lg px-3 py-1.5 font-semibold', filter === k ? 'bg-white shadow-sm' : 'text-muted')}>{t}</button>)}
           </div>
@@ -105,15 +105,15 @@ export function QuestionsBoard({ assessmentId, editable, factors, initial, secti
                     <div className="space-y-6 border-t border-line p-5 md:p-7">
                       <div>
                         <div className="font-display text-xl font-semibold leading-9 text-forest-950">{f.question}</div>
-                        {f.definition && <details className="group mt-3 rounded-xl bg-forest-50/70 p-4 text-sm leading-7"><summary className="flex cursor-pointer list-none items-center gap-2 font-semibold text-forest-800"><Info className="size-4" /> ما المقصود بهذا العامل؟</summary><p className="mt-2 text-ink-2">{f.definition}</p></details>}
+                        {f.definition && <details className="group mt-3 rounded-xl bg-forest-50/70 p-4 text-sm leading-7"><summary className="flex cursor-pointer list-none items-center gap-2 font-semibold text-forest-800"><Info className="size-4" /> ما المقصود بهذا المعيار؟</summary><p className="mt-2 text-ink-2">{f.definition}</p></details>}
                       </div>
-                      {f.asks.length > 0 && <div><div className="mb-2 text-sm font-semibold">ما الذي سيسأل عنه المقيّم</div><ul className="grid gap-2 md:grid-cols-2">{f.asks.map((x, k) => <li key={k} className="flex gap-2 rounded-xl border border-line p-3 text-sm leading-6"><span className="mt-1 size-1.5 shrink-0 rounded-full bg-forest-500" />{x}</li>)}</ul></div>}
+                      {f.asks.length > 0 && <div><div className="mb-2 text-sm font-semibold">ما الذي سيسأل عنه الخبير المراجع</div><ul className="grid gap-2 md:grid-cols-2">{f.asks.map((x, k) => <li key={k} className="flex gap-2 rounded-xl border border-line p-3 text-sm leading-6"><span className="mt-1 size-1.5 shrink-0 rounded-full bg-forest-500" />{x}</li>)}</ul></div>}
 
-                      <div><div className="mb-2 text-sm font-semibold">1. ما وضع جهتكم في هذا العامل؟</div>
+                      <div><div className="mb-2 text-sm font-semibold">1. ما وضع جهتكم في هذا المعيار؟</div>
                         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">{STATUS_OPTS.map(o => <button key={o.v} disabled={!editable} data-on={a?.status === o.v} onClick={() => persist(f.id, { status: o.v })} className={cn('rounded-xl border border-line bg-white px-3 py-3 text-sm font-semibold transition hover:border-forest-400 disabled:opacity-60 data-[on=true]:border-transparent data-[on=true]:shadow-md', o.cls)}>{o.t}</button>)}</div>
                       </div>
 
-                      {a?.status !== 'NA' && <div><div className="mb-2 text-sm font-semibold">2. أي وصف ينطبق على جهتكم؟ <span className="font-normal text-muted">(تقدير ذاتي يسترشد به المقيّم)</span></div>
+                      {a?.status !== 'NA' && <div><div className="mb-2 text-sm font-semibold">2. أي وصف ينطبق على جهتكم؟ <span className="font-normal text-muted">(تقدير ذاتي يسترشد به الخبير المراجع)</span></div>
                         <div className="space-y-2">{f.levels.map((d, lv) => { const on = a?.selfLevel === lv; return (
                           <button key={lv} disabled={!editable} onClick={() => persist(f.id, { selfLevel: lv, status: a?.status ?? (lv >= 3 ? 'YES' : lv >= 1 ? 'PARTIAL' : 'NONE') })} className={cn('flex w-full items-start gap-3 rounded-xl border p-3 text-right text-sm leading-6 transition disabled:opacity-60', on ? 'border-forest-700 bg-forest-50 ring-1 ring-forest-700' : 'border-line hover:border-forest-300')}>
                             <span className="grid size-8 shrink-0 place-items-center rounded-lg font-bold num" style={{ background: LV[lv], color: lv >= 3 ? '#fff' : '#1E2A23' }}>{lv}</span>

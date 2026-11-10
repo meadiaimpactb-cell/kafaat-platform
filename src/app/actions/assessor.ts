@@ -5,11 +5,12 @@ import { db, assessments, factorReviews, infoRequests, visits } from '@/db';
 import { currentUser, can, type SessionUser } from '@/lib/auth';
 import { getAssessment, completeDesk, completeVerification, initVerifiedReviews } from '@/lib/workflow';
 import { notify, notifyOrg, notifyStaff, logActivity } from '@/lib/notify';
+import { addVisitEvent } from '@/lib/visits';
 import type { FormState } from './auth';
 
 type Phase = 'DESK' | 'VERIFIED';
 
-/** المقيّم المسند، أو الأدمن، أو مدير الحساب بصلاحية إدارة التقييمات */
+/** الخبير المراجع المسند، أو الأدمن، أو مدير الحساب بصلاحية إدارة التقييمات */
 async function reviewer(assessmentId: string, phase: Phase = 'DESK') {
   const u = await currentUser();
   if (!u) throw new Error('سجّل الدخول');
@@ -33,7 +34,7 @@ export async function startReview(assessmentId: string) {
   if (a.status === 'SUBMITTED') {
     await db.update(assessments).set({ status: 'UNDER_REVIEW', reviewStartedAt: new Date(), assessorId: a.assessorId ?? (u.role === 'ASSESSOR' ? u.id : null) }).where(eq(assessments.id, assessmentId));
     await logActivity('review.started', { assessmentId, userId: u.id });
-    await notifyOrg(a.orgId, 'بدأ المقيّم مراجعة ملفكم', a.number, `/portal/assessments/${assessmentId}`);
+    await notifyOrg(a.orgId, 'بدأ الخبير المراجع مراجعة ملفكم', a.number, `/portal/assessments/${assessmentId}`);
   }
   refresh(assessmentId);
 }
@@ -48,7 +49,7 @@ export async function saveReview(assessmentId: string, factorId: string, phase: 
   return { ok: true };
 }
 
-/** اعتماد مقترحات المساعد للعوامل التي لم يقدّرها المقيّم بعد */
+/** اعتماد المقترحات الأولية للمعايير التي لم يقدّرها الخبير المراجع بعد */
 export async function acceptAiSuggestions(assessmentId: string) {
   const { u } = await reviewer(assessmentId);
   const rs = await db.select().from(factorReviews).where(and(eq(factorReviews.assessmentId, assessmentId), eq(factorReviews.phase, 'DESK'), isNull(factorReviews.level)));
@@ -66,7 +67,7 @@ export async function createInfoRequest(_: FormState, fd: FormData): Promise<For
   await db.insert(infoRequests).values({ assessmentId, factorId, message, createdById: u.id });
   await db.update(assessments).set({ status: 'INFO_REQUESTED' }).where(eq(assessments.id, assessmentId));
   await logActivity('info.requested', { assessmentId, userId: u.id, details: { factorId } });
-  await notifyOrg(a.orgId, 'المقيّم يطلب استيضاحاً', message.slice(0, 140), `/portal/assessments/${assessmentId}/requests`);
+  await notifyOrg(a.orgId, 'الخبير المراجع يطلب استيضاحاً', message.slice(0, 140), `/portal/assessments/${assessmentId}/requests`);
   refresh(assessmentId);
   return { ok: 'أُرسل الاستيضاح للجهة' };
 }
@@ -86,7 +87,7 @@ export async function completeDeskAction(_: FormState, fd: FormData): Promise<Fo
   const open = (await db.select().from(infoRequests).where(and(eq(infoRequests.assessmentId, assessmentId), eq(infoRequests.status, 'OPEN')))).length;
   if (open) return { error: `توجد ${open} استيضاحات مفتوحة؛ أغلقها أو انتظر رد الجهة` };
   const summary = String(fd.get('summary') ?? '').trim();
-  if (summary.length < 20) return { error: 'اكتب خلاصة المقيّم (20 حرفاً على الأقل)' };
+  if (summary.length < 20) return { error: 'اكتب خلاصة الخبير المراجع (20 حرفاً على الأقل)' };
   const recs = String(fd.get('recommendations') ?? '').split('\n').map(s => s.trim()).filter(Boolean).map((text, i) => ({ text, factors: [] as string[], priority: i < 2 ? 1 : i < 5 ? 2 : 3 }));
   if (recs.length) await db.update(assessments).set({ recommendations: recs }).where(eq(assessments.id, assessmentId));
   try { const r = await completeDesk(assessmentId, u, summary); refresh(assessmentId); return { ok: `اعتُمد التقييم المكتبي: ${r.total} (${r.status === 'مؤهل' ? r.level : 'قيد التأهيل'})` }; }
@@ -114,13 +115,14 @@ export async function saveVisitWork(_: FormState, fd: FormData): Promise<FormSta
 }
 export async function completeVisit(_: FormState, fd: FormData): Promise<FormState> {
   const { u, v, a } = await visitOf(String(fd.get('visitId')));
-  if (v.status !== 'SCHEDULED' && v.status !== 'PAID') return { error: 'الزيارة ليست في حالة قابلة للإنهاء' };
+  if (v.status !== 'IN_PROGRESS' && v.status !== 'SCHEDULED') return { error: 'الزيارة ليست في حالة قابلة للإنهاء (ابدأ الزيارة أولاً)' };
   if (!v.sampleResult?.checked) return { error: 'سجّل نتيجة عينة التتبع أولاً واحفظها' };
   await initVerifiedReviews(a.id);
   await db.update(visits).set({ status: 'COMPLETED', completedAt: new Date() }).where(eq(visits.id, v.id));
+  await addVisitEvent(v.id, 'completed', { actor: u, data: { ...v.sampleResult } });
   await logActivity('visit.completed', { assessmentId: a.id, userId: u.id, details: v.sampleResult });
   await notifyStaff('اكتملت زيارة تحقق: الشهادة بانتظار الاعتماد', a.number, `/admin/assessments/${a.id}`);
-  await notifyOrg(a.orgId, 'اكتملت زيارة التحقق', 'الشهادة الموثقة قيد الاعتماد النهائي.', `/portal/assessments/${a.id}/verification`);
+  await notifyOrg(a.orgId, 'اكتملت زيارة التحقق', 'التقرير التعقيبي والشهادة الموثقة قيد الإعداد والاعتماد.', `/portal/assessments/${a.id}/verification`);
   revalidatePath(`/assessor/visits/${v.id}`);
   return { ok: 'أُنهيت الزيارة. يعتمد مدير الحساب الشهادة الموثقة.' };
 }
@@ -136,4 +138,37 @@ export async function issueVerifiedAction(assessmentId: string) {
 export async function notifyAssessorNudge(assessmentId: string) {
   const a = await getAssessment(assessmentId);
   await notify([a.assessorId], 'تذكير بمراجعة طلب', a.number, `/assessor/assessments/${assessmentId}`);
+}
+
+/** بدء الزيارة الميدانية */
+export async function startVisit(_: FormState, fd: FormData): Promise<FormState> {
+  const { u, v, a } = await visitOf(String(fd.get('visitId')));
+  if (v.status !== 'SCHEDULED') return { error: 'تُبدأ الزيارة المجدولة فقط' };
+  await db.update(visits).set({ status: 'IN_PROGRESS', startedAt: new Date() }).where(eq(visits.id, v.id));
+  await addVisitEvent(v.id, 'started', { actor: u });
+  await logActivity('visit.started', { assessmentId: a.id, userId: u.id });
+  revalidatePath(`/assessor/visits/${v.id}`); revalidatePath('/admin/visits');
+  return { ok: 'بدأت الزيارة' };
+}
+
+const lines = (v: FormDataEntryValue | null) => String(v ?? '').split('\n').map(x => x.trim()).filter(Boolean);
+/** التقرير التعقيبي: ملخص ونقاط قوة وملاحظات وتوصيات تُنشر للجهة بعد المراجعة */
+export async function saveFollowup(_: FormState, fd: FormData): Promise<FormState> {
+  const { u, v, a } = await visitOf(String(fd.get('visitId')));
+  if (v.followupStatus === 'PUBLISHED') return { error: 'نُشر التقرير ولا يمكن تعديله' };
+  const summary = String(fd.get('summary') ?? '').trim();
+  const followup = { summary, strengths: lines(fd.get('strengths')), findings: lines(fd.get('findings')), recommendations: lines(fd.get('recommendations')) };
+  const publish = fd.get('publish') === '1';
+  if (publish) {
+    if (!['COMPLETED'].includes(v.status)) return { error: 'يُنشر التقرير بعد إنهاء الزيارة' };
+    if (summary.length < 40 || !followup.recommendations.length) return { error: 'اكتب ملخصاً وافياً (40 حرفاً على الأقل) وتوصية واحدة على الأقل قبل النشر' };
+  }
+  await db.update(visits).set({ followup, followupStatus: publish ? 'PUBLISHED' : 'DRAFT', ...(publish ? { followupPublishedAt: new Date() } : {}) }).where(eq(visits.id, v.id));
+  if (publish) {
+    await addVisitEvent(v.id, 'followup', { actor: u });
+    await logActivity('visit.followup', { assessmentId: a.id, userId: u.id });
+    await notifyOrg(a.orgId, 'صدر التقرير التعقيبي لزيارة التحقق', a.number, `/portal/assessments/${a.id}/verification`);
+  }
+  revalidatePath(`/assessor/visits/${v.id}`); revalidatePath(`/portal/assessments/${a.id}/verification`); revalidatePath('/admin/visits');
+  return { ok: publish ? 'نُشر التقرير التعقيبي للجهة' : 'حُفظت مسودة التقرير التعقيبي' };
 }

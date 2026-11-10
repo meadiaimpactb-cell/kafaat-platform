@@ -1,37 +1,41 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { and, desc, eq, ne } from 'drizzle-orm';
-import { ArrowLeft, Bot, CalendarCheck, CreditCard, FileUp, ListChecks, MessageSquareWarning, Sparkles, Award, Hourglass } from 'lucide-react';
-import { db, assessments, payments, activityLogs, users, infoRequests, certificates, visits } from '@/db';
-import { requireUser } from '@/lib/auth';
+import { ArrowLeft, CalendarCheck, CreditCard, FileUp, ListChecks, MessageSquareWarning, Sparkles, Award, Hourglass, ShieldAlert } from 'lucide-react';
+import { db, assessments, payments, activityLogs, infoRequests, certificates, visits } from '@/db';
+import { requireOrgUser } from '@/lib/auth';
 import { JourneyTrack, StatusBadge } from '@/components/journey';
-import { Button, ButtonLink, Card, CardTitle, EfficiencyLabel, Ring, Badge, Empty } from '@/components/ui';
+import { Button, ButtonLink, Card, CardTitle, EfficiencyLabel, Ring } from '@/components/ui';
+import { ReadinessPanel } from '@/components/portal/readiness-panel';
+import { TeamCard } from '@/components/portal/team-card';
+import { getSetting } from '@/lib/settings';
+import { VERIFICATION_LABEL } from '@/lib/org-meta';
 import { createAssessmentRequest } from '@/app/actions/org';
 import { recomputeProgress } from '@/lib/workflow';
 import { TRACK_LABEL, TRACK_RANGE } from '@/lib/domain';
 import { fmtDate, fmtRel, fmtSAR } from '@/lib/format';
-import type { GapAnalysis } from '@/lib/ai';
+import { quote } from '@/lib/payments';
 
 const ACTION_LABEL: Record<string, string> = {
-  'assessment.created': 'أُنشئ طلب التقييم', 'payment.paid': 'اكتمل الدفع', 'document.uploaded': 'رُفع ملف', 'assessment.submitted': 'أُرسل الطلب للمراجعة', 'assessment.assigned': 'أُسند المقيّم',
-  'review.started': 'بدأ المقيّم المراجعة', 'info.requested': 'طلب المقيّم استيضاحاً', 'assessment.resubmitted': 'أُعيد الإرسال بعد الاستيضاح', 'desk.completed': 'صدرت النتيجة غير الموثقة', 'visit.requested': 'طُلبت زيارة التحقق',
+  'assessment.created': 'أُنشئ طلب التقييم', 'payment.paid': 'اكتمل الدفع', 'document.uploaded': 'رُفع ملف', 'assessment.submitted': 'أُرسل الطلب للمراجعة', 'assessment.assigned': 'أُسند الطلب لخبير مراجع', 'assessment.verifier': 'عُيّن خبير التحقق', 'visit.confirmed': 'أُكد موعد الزيارة', 'visit.followup': 'صدر التقرير التعقيبي',
+  'review.started': 'بدأت المراجعة', 'info.requested': 'طُلب استيضاح', 'assessment.resubmitted': 'أُعيد الإرسال بعد الاستيضاح', 'desk.completed': 'صدرت النتيجة غير الموثقة', 'visit.requested': 'طُلبت زيارة التحقق',
   'visit.scheduled': 'جُدولت زيارة التحقق', 'visit.completed': 'اكتملت زيارة التحقق', 'certificate.verified': 'صدرت الشهادة الموثقة',
 };
 
 export default async function PortalHome({ searchParams }: { searchParams: Promise<{ paid?: string }> }) {
-  const u = await requireUser(['ORG_USER']);
-  const org = u.org!;
-  if (!org.profileCompleted) redirect('/portal/onboarding');
+  const u = await requireOrgUser();
+  const org = u.org;
+  if (!org.profileCompleted) redirect(`/portal/onboarding?org=${org.id}&need=1#docs`);
   const a = (await db.select().from(assessments).where(and(eq(assessments.orgId, org.id), ne(assessments.status, 'CANCELLED'))).orderBy(desc(assessments.createdAt)).limit(1))[0];
   const cycle = new Date().getFullYear() - 1;
   const sp = await searchParams;
+  const certQuote = await quote('CERTIFICATE');
 
-  let next: { title: string; text: string; cta?: React.ReactNode; icon: React.ReactNode } = { title: `اطلب تقييم السنة المالية ${cycle}`, text: 'ستتعرف على درجة كفاءة الأثر لجهتك وما ينقصها، بمراجعة مقيّم خبير.', icon: <Sparkles />, cta: <form action={createAssessmentRequest}><Button variant="lime" size="lg">اطلب التقييم الآن <ArrowLeft className="size-5" /></Button></form> };
+  let next: { title: string; text: string; cta?: React.ReactNode; icon: React.ReactNode } = { title: `اطلب تقييم السنة المالية ${cycle}`, text: 'ستتعرف على درجة كفاءة الأثر لجهتك وما ينقصها، بتقييم مهني من خلال خبراء معتمدين.', icon: <Sparkles />, cta: <form action={createAssessmentRequest}><Button variant="lime" size="lg">اطلب التقييم الآن <ArrowLeft className="size-5" /></Button></form> };
   let prog: Awaited<ReturnType<typeof recomputeProgress>> | null = null;
-  let assessorName: string | null = null; let openReqs = 0; let pendingPay: typeof payments.$inferSelect | undefined; let cert: typeof certificates.$inferSelect | undefined; let visit: typeof visits.$inferSelect | undefined;
+  let openReqs = 0; let pendingPay: typeof payments.$inferSelect | undefined; let cert: typeof certificates.$inferSelect | undefined; let visit: typeof visits.$inferSelect | undefined;
   if (a) {
     prog = await recomputeProgress(a.id);
-    if (a.assessorId) assessorName = (await db.select({ n: users.name }).from(users).where(eq(users.id, a.assessorId)))[0]?.n ?? null;
     openReqs = (await db.select().from(infoRequests).where(and(eq(infoRequests.assessmentId, a.id), eq(infoRequests.status, 'OPEN')))).length;
     pendingPay = (await db.select().from(payments).where(eq(payments.assessmentId, a.id))).find(p => ['PENDING', 'FAILED', 'AWAITING_APPROVAL'].includes(p.status));
     cert = (await db.select().from(certificates).where(and(eq(certificates.assessmentId, a.id), eq(certificates.status, 'ACTIVE'))).orderBy(desc(certificates.issuedAt)))[0];
@@ -39,19 +43,18 @@ export default async function PortalHome({ searchParams }: { searchParams: Promi
     const base = `/portal/assessments/${a.id}`;
     switch (a.status) {
       case 'DRAFT': case 'AWAITING_PAYMENT':
-        next = { title: 'ادفع رسوم التقييم لبدء التعبئة', text: pendingPay?.status === 'AWAITING_APPROVAL' ? 'استلمنا إيصال التحويل، وهو بانتظار اعتماد الإدارة.' : `المبلغ ${fmtSAR(Number(pendingPay?.total ?? 1000))} شاملاً الضريبة. بعد الدفع تُفتح الأسئلة ورفع الملفات فوراً.`, icon: <CreditCard />, cta: pendingPay && pendingPay.status !== 'AWAITING_APPROVAL' ? <ButtonLink href={`/portal/checkout/${pendingPay.id}`} variant="lime" size="lg">إتمام الدفع <ArrowLeft className="size-5" /></ButtonLink> : undefined }; break;
+        next = { title: 'ادفع رسوم التقييم لبدء التعبئة', text: pendingPay?.status === 'AWAITING_APPROVAL' ? 'استلمنا إيصال التحويل، وهو بانتظار اعتماد الإدارة.' : `المبلغ ${fmtSAR(Number(pendingPay?.total ?? certQuote.total))} شاملاً الضريبة. بعد الدفع تُفتح الأسئلة ورفع الملفات فوراً.`, icon: <CreditCard />, cta: pendingPay && pendingPay.status !== 'AWAITING_APPROVAL' ? <ButtonLink href={`/portal/checkout/${pendingPay.id}`} variant="lime" size="lg">إتمام الدفع <ArrowLeft className="size-5" /></ButtonLink> : undefined }; break;
       case 'DATA_COLLECTION':
-        next = { title: prog!.missingDocs.length ? `ارفع ${prog!.missingDocs.length} ملفات أساسية متبقية` : prog!.answered < prog!.total ? `أجب عن ${prog!.total - prog!.answered} سؤالاً متبقياً` : 'ملفك مكتمل: أرسله للمراجعة', text: 'كل عامل دون إجابة أو دليل يُقدّر بالمستوى 0. المساعد الذكي يخبرك بما ينقص.', icon: <FileUp />,
+        next = { title: prog!.missingDocs.length ? `ارفع ${prog!.missingDocs.length} ملفات أساسية متبقية` : prog!.answered < prog!.total ? `أجب عن ${prog!.total - prog!.answered} سؤالاً متبقياً` : 'ملفك مكتمل: أرسله للمراجعة', text: 'كل معيار دون إجابة أو دليل يُقدّر بالمستوى 0. تعرض لك قائمة الجاهزية ما ينقص ملفك.', icon: <FileUp />,
           cta: <div className="flex flex-wrap gap-2"><ButtonLink href={`${base}/questions`} variant="lime" size="lg">الأسئلة</ButtonLink><ButtonLink href={`${base}/documents`} variant="outline" size="lg" className="bg-transparent text-white border-white/30 hover:text-lime-brand hover:border-lime-brand">الملفات</ButtonLink></div> }; break;
-      case 'SUBMITTED': next = { title: 'طلبك أُرسل للمراجعة', text: 'سيُسند إليه مقيّم معتمد قريباً، وستصلك الإشعارات بكل تحديث.', icon: <Hourglass /> }; break;
-      case 'UNDER_REVIEW': next = { title: 'طلبك لدى المقيّم', text: `${assessorName ?? 'المقيّم'} يراجع إجاباتك وأدلتك عاملاً عاملاً.`, icon: <ListChecks /> }; break;
-      case 'INFO_REQUESTED': next = { title: `المقيّم يطلب ${openReqs} استيضاحات`, text: 'أجب عنها وارفع ما يلزم ليستكمل المقيّم التقييم.', icon: <MessageSquareWarning />, cta: <ButtonLink href={`${base}/requests`} variant="lime" size="lg">الرد على الاستيضاحات</ButtonLink> }; break;
-      case 'DESK_COMPLETED': next = { title: 'صدرت نتيجتك غير الموثقة', text: 'للحصول على الشهادة الموثقة اطلب زيارة التحقق الميدانية.', icon: <Award />, cta: <div className="flex flex-wrap gap-2"><ButtonLink href={`${base}/result`} variant="lime" size="lg">عرض النتيجة</ButtonLink><ButtonLink href={`${base}/verification`} variant="outline" size="lg" className="bg-transparent text-white border-white/30 hover:text-lime-brand hover:border-lime-brand">طلب زيارة التحقق</ButtonLink></div> }; break;
-      case 'VERIFICATION': next = { title: visit?.status === 'SCHEDULED' ? `زيارة التحقق في ${fmtDate(visit.scheduledAt)}` : visit?.status === 'COMPLETED' ? 'اكتملت الزيارة: الشهادة قيد الاعتماد' : visit?.status === 'PAID' ? 'رسوم الزيارة مدفوعة: بانتظار تحديد الموعد' : 'أكمل طلب زيارة التحقق', text: 'المستشار سيتحقق ميدانياً من الأدلة بعينة تتبع ومقابلات.', icon: <CalendarCheck />, cta: <ButtonLink href={`${base}/verification`} variant="lime" size="lg">تفاصيل الزيارة</ButtonLink> }; break;
+      case 'SUBMITTED': next = { title: 'طلبك أُرسل للمراجعة', text: 'سيُسند إليه خبير معتمد قريباً، وستصلك الإشعارات بكل تحديث.', icon: <Hourglass /> }; break;
+      case 'UNDER_REVIEW': next = { title: 'طلبك لدى خبير مراجع', text: 'يراجع الخبير المعتمد إجاباتك وأدلتك معياراً معياراً.', icon: <ListChecks /> }; break;
+      case 'INFO_REQUESTED': next = { title: `الخبير يطلب ${openReqs} استيضاحات`, text: 'أجب عنها وارفع ما يلزم ليستكمل الخبير التقييم.', icon: <MessageSquareWarning />, cta: <ButtonLink href={`${base}/requests`} variant="lime" size="lg">الرد على الاستيضاحات</ButtonLink> }; break;
+      case 'DESK_COMPLETED': next = { title: 'صدرت نتيجتك غير الموثقة', text: 'للحصول على الشهادة الموثقة والتقرير التعقيبي اطلب التوثيق الميداني.', icon: <Award />, cta: <div className="flex flex-wrap gap-2"><ButtonLink href={`${base}/result`} variant="lime" size="lg">عرض النتيجة</ButtonLink><ButtonLink href={`${base}/verification`} variant="outline" size="lg" className="bg-transparent text-white border-white/30 hover:text-lime-brand hover:border-lime-brand">طلب التوثيق</ButtonLink></div> }; break;
+      case 'VERIFICATION': next = { title: visit?.status === 'SCHEDULED' ? `زيارة التحقق في ${fmtDate(visit.scheduledAt)}` : visit?.status === 'IN_PROGRESS' ? 'زيارة التحقق قيد التنفيذ' : visit?.status === 'COMPLETED' ? 'اكتملت الزيارة: الشهادة قيد الاعتماد' : visit?.status === 'PAID' ? 'رسوم التوثيق مدفوعة: بانتظار تحديد الموعد' : 'أكمل طلب التوثيق', text: 'سيتحقق خبير ميداني من الأدلة بعينة تتبع ومقابلات، ثم يصدر التقرير التعقيبي.', icon: <CalendarCheck />, cta: <ButtonLink href={`${base}/verification`} variant="lime" size="lg">تفاصيل الزيارة</ButtonLink> }; break;
       case 'CERTIFIED': next = { title: 'شهادتك الموثقة صادرة', text: `سارية حتى ${fmtDate(cert?.validUntil)}.`, icon: <Award />, cta: <ButtonLink href="/portal/certificates" variant="lime" size="lg">عرض الشهادة</ButtonLink> }; break;
     }
   }
-  const gaps = (a?.aiGaps as unknown as GapAnalysis | null) ?? null;
   const acts = a ? await db.select().from(activityLogs).where(eq(activityLogs.assessmentId, a.id)).orderBy(desc(activityLogs.createdAt)).limit(7) : [];
   const res = (a?.finalResult ?? a?.deskResult) as { total: number; level: string; status: string } | null;
 
@@ -83,24 +86,22 @@ export default async function PortalHome({ searchParams }: { searchParams: Promi
         </div>
       </section>
 
+      {org.verificationStatus !== 'VERIFIED' && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-white p-4 ring-1 ring-line"><ShieldAlert className="size-5 shrink-0 text-amber-600" /><div className="min-w-0 flex-1 text-sm"><b>حساب الجهة: {VERIFICATION_LABEL[org.verificationStatus].label}.</b> <span className="text-muted">{VERIFICATION_LABEL[org.verificationStatus].hint}. لا يمنع ذلك تقديم طلب التقييم، لكنه لازم قبل التوثيق الميداني.</span></div><ButtonLink href={`/portal/onboarding?org=${org.id}`} variant="outline" size="sm">بيانات الجهة</ButtonLink></div>
+      )}
+
       <JourneyTrack status={a?.status} />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="p-6 lg:col-span-2">
-          <CardTitle icon={<Bot className="size-5" />} title="المساعد الذكي: ما ينقص ملفك" subtitle={gaps ? `آخر تحليل ${fmtRel(gaps.at)} · جاهزية ${gaps.readiness}٪` : 'يحلل ملفاتك وإجاباتك ويرتب النواقص بالأولوية'}
-            action={a && ['DATA_COLLECTION', 'INFO_REQUESTED'].includes(a.status) ? <ButtonLink href={`/portal/assessments/${a.id}/documents`} variant="outline" size="sm">مركز الملفات</ButtonLink> : undefined} />
-          {gaps?.missing?.length ? (
-            <ul className="space-y-2.5">
-              {gaps.missing.slice(0, 5).map((m, i) => (
-                <li key={i} className="flex items-start gap-3 rounded-xl bg-forest-50/70 p-3.5">
-                  <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${m.priority === 'عالية' ? 'bg-orange-brand' : m.priority === 'متوسطة' ? 'bg-amber-brand' : 'bg-forest-400'}`} />
-                  <div className="min-w-0"><div className="font-semibold">{m.title}</div><div className="text-sm text-muted">{m.why}</div></div>
-                  <Badge tone={m.priority === 'عالية' ? 'orange' : m.priority === 'متوسطة' ? 'amber' : 'slate'} className="ms-auto">{m.priority}</Badge>
-                </li>
-              ))}
-            </ul>
-          ) : <Empty icon={<Sparkles className="size-5" />} title={!a ? 'ابدأ بطلب التقييم' : gaps ? 'لا نواقص ظاهرة في ملفك' : 'لم يُشغّل التحليل بعد'} text={!a ? 'بعد الدفع ستظهر هنا النواقص مرتبة بالأولوية.' : gaps ? 'اكتملت الملفات الأساسية والإجابات وفق آخر تحليل.' : 'ارفع ملفاتك ثم اضغط «حلّل ملفي» في مركز الملفات لترى ما ينقص.'} />}
-        </Card>
+        <div className="space-y-6 lg:col-span-2">
+          {a && prog && ['DATA_COLLECTION', 'INFO_REQUESTED'].includes(a.status) ? <ReadinessPanel p={prog} base={`/portal/assessments/${a.id}`} openRequests={openReqs} limit={5} /> : (
+            <Card className="p-6">
+              <CardTitle icon={<Sparkles className="size-5" />} title={a ? 'حالة طلبك' : 'ابدأ بطلب التقييم'} subtitle={a ? 'تابع مراحل الطلب من الشريط أعلاه' : 'بعد الدفع تُفتح الأسئلة ورفع الملفات'} />
+              <p className="mt-3 text-sm leading-7 text-muted">{a ? 'ستصلك إشعارات داخل المنصة وعلى بريدك عند كل تحديث. ويمكنك مراسلة الخبير المراجع للاستفسار في أي وقت.' : 'تُعرض هنا قائمة جاهزية ملفك ونواقصه مرتبة بالأولوية بعد بدء الطلب.'}</p>
+            </Card>
+          )}
+          {a && <TeamCard a={a} />}
+        </div>
         <Card className="p-6">
           <CardTitle title="آخر التحديثات" />
           {acts.length ? (

@@ -1,13 +1,13 @@
 import { desc, eq } from 'drizzle-orm';
 import { Award, ExternalLink, Printer } from 'lucide-react';
 import { db, certificates } from '@/db';
-import { requireUser } from '@/lib/auth';
+import { requireOrgUser } from '@/lib/auth';
 import { PageHeader, Card, EfficiencyLabel, ButtonLink, Empty, Badge } from '@/components/ui';
 import { fmtDate, fmtNum } from '@/lib/format';
 
 export const metadata = { title: 'الشهادات' };
 export default async function Page() {
-  const u = await requireUser(['ORG_USER']);
+  const u = await requireOrgUser();
   const rows = await db.select().from(certificates).where(eq(certificates.orgId, u.orgId!)).orderBy(desc(certificates.issuedAt));
   return (
     <div>
@@ -35,7 +35,7 @@ export default async function Page() {
             </Card>
           ); })}
         </div>
-      ) : <Empty icon={<Award className="size-6" />} title="لا شهادات بعد" text="تصدر الإفادة بعد اعتماد المقيّم للتقييم المكتبي." />}
+      ) : <Empty icon={<Award className="size-6" />} title="لا شهادات بعد" text="تصدر الإفادة بعد اعتماد الخبير المراجع للتقييم المكتبي." />}
     </div>
   );
 }

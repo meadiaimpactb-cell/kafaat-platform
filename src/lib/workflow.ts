@@ -16,8 +16,8 @@ export async function getAssessment(id: string) {
 export function canAccess(u: SessionUser, a: typeof assessments.$inferSelect) {
   if (u.role === 'SUPER_ADMIN') return true;
   if (u.role === 'ACCOUNT_MANAGER') return can(u, 'assessments.view');
-  if (u.role === 'ASSESSOR') return a.assessorId === u.id || a.secondAssessorId === u.id;
-  return u.orgId === a.orgId;
+  if (u.role === 'ASSESSOR') return a.assessorId === u.id || a.secondAssessorId === u.id || a.verifierId === u.id;
+  return u.orgIds.includes(a.orgId);
 }
 
 export async function requiredDocs(track: string) {
@@ -69,7 +69,7 @@ export async function completeDesk(assessmentId: string, by: SessionUser, summar
   const a = await getAssessment(assessmentId);
   const L = await levelsOf(assessmentId, 'DESK');
   const missing = FACTOR_IDS.filter(f => L[f] == null);
-  if (missing.length) throw new Error(`لم تُقدّر ${missing.length} عوامل بعد: ${missing.slice(0, 6).join('، ')}`);
+  if (missing.length) throw new Error(`لم تُقدّر ${missing.length} معايير بعد: ${missing.slice(0, 6).join('، ')}`);
   const r = evaluate(L, Number(a.expenses ?? 0)); const snap = snapshot(r);
   const fs = await db.select({ id: factors.id, name: factors.name }).from(factors);
   const nm = Object.fromEntries(fs.map(f => [f.id, f.name]));

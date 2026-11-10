@@ -10,7 +10,7 @@ export async function MethodologyLibrary() {
   const nm = Object.fromEntries(fs.map(f => [f.id, f.name]));
   return (
     <div className="space-y-6">
-      <PageHeader title="مكتبة العوامل والمنهجية" subtitle="56 عاملاً بمستويات من 0 إلى 4 · أربعة محاور بنقاط 30/30/30/10 · بوابات ومتطلبات مسار وسقوف." />
+      <PageHeader title="مكتبة المعايير والمنهجية" subtitle="معايير بمستويات من 0 إلى 4 · أربعة محاور بنقاط 30/30/30/10 · بوابات ومتطلبات مسار وسقوف." />
       <div className="grid gap-4 md:grid-cols-4">
         {Object.entries(AXES).map(([k, a]) => <Card key={k} className="p-5"><div className="text-xs text-muted">المحور {k} · {a.pts} نقطة</div><div className="mt-1 font-semibold">{a.name}</div><div className="mt-2 text-xs text-muted">{a.ids.map(i => nm[i]).join('، ')}</div></Card>)}
       </div>

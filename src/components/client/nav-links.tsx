@@ -1,8 +1,8 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Award, Bell, BookOpen, Bot, Building2, ClipboardList, Circle, CreditCard, FileCog, Home, KeyRound, LayoutDashboard, Library, ListChecks, MapPin, Receipt, ScrollText, Settings, TicketPercent, Users, Wallet, BadgeCheck, Gauge } from 'lucide-react';
-const ICONS = { Award, Bell, BookOpen, Bot, Building2, ClipboardList, CreditCard, FileCog, Home, KeyRound, LayoutDashboard, Library, ListChecks, MapPin, Receipt, ScrollText, Settings, TicketPercent, Users, Wallet, BadgeCheck, Gauge } as Record<string, typeof Circle>;
+import { Award, Bell, BookOpen, Bot, Building2, ClipboardList, Circle, CreditCard, FileCog, Home, KeyRound, LayoutDashboard, Library, ListChecks, MapPin, Receipt, ScrollText, Settings, TicketPercent, Users, Wallet, BadgeCheck, Gauge, MessageSquare, Landmark, ShieldCheck, Mail, Search, CalendarClock } from 'lucide-react';
+const ICONS = { Award, Bell, BookOpen, Bot, Building2, ClipboardList, CreditCard, FileCog, Home, KeyRound, LayoutDashboard, Library, ListChecks, MapPin, Receipt, ScrollText, Settings, TicketPercent, Users, Wallet, BadgeCheck, Gauge, MessageSquare, Landmark, ShieldCheck, Mail, Search, CalendarClock } as Record<string, typeof Circle>;
 import { cn } from '@/lib/cn';
 
 export type NavItem = { href: string; label: string; icon: string; badge?: number; section?: string; exact?: boolean };

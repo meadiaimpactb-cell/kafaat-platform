@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { FlaskConical, Lock } from 'lucide-react';
 import { db, payments } from '@/db';
-import { requireUser } from '@/lib/auth';
+import { requireUser, ownsOrg } from '@/lib/auth';
 import { sandboxPay } from '@/app/actions/org';
 import { Submit } from '@/components/client/submit';
 import { fmtSAR } from '@/lib/format';
@@ -13,7 +13,7 @@ export default async function Page({ params }: { params: Promise<{ paymentId: st
   const { paymentId } = await params;
   const u = await requireUser(['ORG_USER']);
   const pay = (await db.select().from(payments).where(eq(payments.id, paymentId)).limit(1))[0];
-  if (!pay || pay.orgId !== u.orgId) notFound();
+  if (!pay || !ownsOrg(u, pay.orgId)) notFound();
   if (pay.status === 'PAID') redirect(`/portal/assessments/${pay.assessmentId}`);
   return (
     <div className="grid min-h-screen place-items-center bg-[#0f1720] p-4">

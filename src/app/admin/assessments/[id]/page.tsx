@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { Building2, ExternalLink, FileText, ListChecks, Printer } from 'lucide-react';
 import { db, assessments, organizations, users, visits, payments, certificates, documents, activityLogs, factorReviews, infoRequests } from '@/db';
 import { requireStaff, can } from '@/lib/auth';
@@ -8,9 +8,11 @@ import { PageHeader, Card, CardTitle, ButtonLink, Badge, Progress, LevelBadge, E
 import { StatusBadge, JourneyTrack } from '@/components/journey';
 import { ActionForm } from '@/components/admin/action-form';
 import { Submit } from '@/components/client/submit';
-import { assignAssessment, setAssessmentStatus, scheduleVisit, issueVerifiedCertificate } from '@/app/actions/admin';
-import { TRACK_LABEL, PAYMENT_STATUS_LABEL, PRODUCT_LABEL, VISIT_STATUS_LABEL, ACTION_LABEL } from '@/lib/domain';
+import { assignAssessment, assignVerifier, setAssessmentStatus, issueVerifiedCertificate } from '@/app/actions/admin';
+import { VisitPanel } from '@/components/admin/visit-panel';
+import { TRACK_LABEL, PAYMENT_STATUS_LABEL, PRODUCT_LABEL, ACTION_LABEL } from '@/lib/domain';
 import { fmtDate, fmtRel, fmtSAR, fileSize } from '@/lib/format';
+import { CORE_FACTORS } from '@/lib/domain';
 
 export const metadata = { title: 'تفاصيل الطلب' };
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -27,10 +29,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const acts = await db.select({ l: activityLogs, who: users.name }).from(activityLogs).leftJoin(users, eq(users.id, activityLogs.userId)).where(eq(activityLogs.assessmentId, id)).orderBy(desc(activityLogs.createdAt)).limit(30);
   const reviewed = (await db.select({ l: factorReviews.level }).from(factorReviews).where(and(eq(factorReviews.assessmentId, id), eq(factorReviews.phase, 'DESK')))).filter(r => r.l != null).length;
   const openReqs = (await db.select().from(infoRequests).where(and(eq(infoRequests.assessmentId, id), eq(infoRequests.status, 'OPEN')))).length;
+  const deskLoad = Object.fromEntries((await db.select({ id: assessments.assessorId, c: count() }).from(assessments).where(inArray(assessments.status, ['SUBMITTED', 'UNDER_REVIEW', 'INFO_REQUESTED'])).groupBy(assessments.assessorId)).map(r => [r.id ?? '', r.c]));
+  const visitLoad = Object.fromEntries((await db.select({ id: visits.consultantId, c: count() }).from(visits).where(inArray(visits.status, ['SCHEDULED', 'IN_PROGRESS'])).groupBy(visits.consultantId)).map(r => [r.id ?? '', r.c]));
   const assessors = staff.filter(s => s.role === 'ASSESSOR'); const managers = staff.filter(s => s.role !== 'ASSESSOR');
-  const consultants = staff.filter(s => s.role === 'ASSESSOR' && s.fv);
+  const withLoad = (arr: typeof staff, m: Record<string, number>, unit: string) => arr.map(x => ({ ...x, label: `${x.name} — ${m[x.id] ?? 0} ${unit}` }));
+  const consultants = staff.filter(s => s.role === 'ASSESSOR' && s.fv).map(c => ({ id: c.id, name: c.name, load: visitLoad[c.id] ?? 0 }));
   const res = (a.finalResult ?? a.deskResult) as { total: number; level: string; status: string } | null;
-  const toLocal = (d: Date | null) => (d ? new Date(d.getTime() + 3 * 3600e3).toISOString().slice(0, 16) : '');
 
   return (
     <div className="space-y-6">
@@ -40,35 +44,39 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <div className="grid gap-6 xl:grid-cols-[1fr_1.15fr]">
         <div className="space-y-6">
           <Card className="p-6">
-            <CardTitle title="الإسناد" subtitle="المقيّم يراجع ويقدّر العوامل، والمقيّم الثاني للمراجعة المزدوجة (اختياري)" />
+            <CardTitle title="إسناد الخبراء حسب المرحلة" subtitle="مرحلة التقرير غير الموثق (مراجعة مكتبية) ثم مرحلة التقرير الموثق (تحقق ميداني) — لكل مرحلة خبير مستقل" />
             {can(u, 'assessments.assign') ? (
-              <ActionForm action={assignAssessment} className="mt-5 grid gap-4 sm:grid-cols-3">
-                <input type="hidden" name="assessmentId" value={id} />
-                <label><span className="label">المقيّم</span><select name="assessorId" defaultValue={a.assessorId ?? ''} className="input"><option value="">— لم يُسند —</option>{assessors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-                <label><span className="label">مقيّم ثانٍ</span><select name="secondAssessorId" defaultValue={a.secondAssessorId ?? ''} className="input"><option value="">—</option>{assessors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-                <label><span className="label">مدير الحساب</span><select name="managerId" defaultValue={a.managerId ?? ''} className="input"><option value="">—</option>{managers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-                <div className="sm:col-span-3"><Submit>حفظ الإسناد</Submit></div>
-              </ActionForm>
-            ) : <p className="mt-4 text-sm text-muted">المقيّم: {staff.find(s => s.id === a.assessorId)?.name ?? '—'}</p>}
+              <div className="mt-5 space-y-5">
+                <ActionForm action={assignAssessment} className="space-y-4 rounded-2xl border border-line p-4">
+                  <input type="hidden" name="assessmentId" value={id} />
+                  <div className="flex items-center justify-between"><div className="font-semibold">1) المراجعة المكتبية — التقرير غير الموثق</div>{a.assessorId ? <Badge tone="green">مسند</Badge> : <Badge tone="orange">غير مسند</Badge>}</div>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <label><span className="label">المقيّم</span><select name="assessorId" defaultValue={a.assessorId ?? ''} className="input"><option value="">— لم يُسند —</option>{withLoad(assessors, deskLoad, 'طلب نشط').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
+                    <label><span className="label">مقيّم ثانٍ (اختياري)</span><select name="secondAssessorId" defaultValue={a.secondAssessorId ?? ''} className="input"><option value="">—</option>{withLoad(assessors, deskLoad, 'طلب نشط').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
+                    <label><span className="label">مدير الحساب</span><select name="managerId" defaultValue={a.managerId ?? ''} className="input"><option value="">—</option>{managers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+                  </div>
+                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="revealAssessor" defaultChecked={a.revealAssessor} className="mt-1" /><span>إظهار اسم المقيّم وبيانات التواصل للجهة <span className="block text-xs text-muted">الافتراضي مخفي للحفاظ على استقلالية المراجعة؛ تبقى المراسلة متاحة دون كشف الهوية.</span></span></label>
+                  <Submit>حفظ إسناد المرحلة المكتبية</Submit>
+                </ActionForm>
+                <ActionForm action={assignVerifier} className="space-y-4 rounded-2xl border border-line p-4">
+                  <input type="hidden" name="assessmentId" value={id} />
+                  <div className="flex items-center justify-between"><div className="font-semibold">2) التحقق الميداني — التقرير الموثق والتعقيبي</div>{a.verifierId ? <Badge tone="green">مسند</Badge> : <Badge tone="slate">غير مسند</Badge>}</div>
+                  <label><span className="label">خبير التحقق</span><select name="verifierId" defaultValue={a.verifierId ?? ''} className="input"><option value="">— لم يُسند —</option>{withLoad(staff.filter(x => x.role === 'ASSESSOR' && x.fv && x.id !== a.assessorId && x.id !== a.secondAssessorId), visitLoad, 'زيارة نشطة').map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
+                  <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="revealVerifier" defaultChecked={a.revealVerifier} className="mt-1" /><span>إظهار اسم خبير التحقق وجواله للجهة <span className="block text-xs text-muted">الافتراضي ظاهر لأن الزيارة الميدانية تتطلب تنسيقاً مباشراً.</span></span></label>
+                  <Submit>حفظ إسناد التحقق</Submit>
+                </ActionForm>
+              </div>
+            ) : <p className="mt-4 text-sm text-muted">المقيّم: {staff.find(s => s.id === a.assessorId)?.name ?? '—'} · خبير التحقق: {staff.find(s => s.id === a.verifierId)?.name ?? '—'}</p>}
           </Card>
           <Card className="p-6">
-            <CardTitle title="زيارة التحقق" action={v ? <Badge tone={VISIT_STATUS_LABEL[v.status].tone} dot>{VISIT_STATUS_LABEL[v.status].label}</Badge> : null} />
-            {!v ? <p className="mt-4 text-sm text-muted">لم تطلب الجهة زيارة تحقق بعد.</p> : (
+            <CardTitle title="زيارة التحقق والتقرير التعقيبي" />
+            {!v ? <p className="mt-4 text-sm text-muted">لم تطلب الجهة التوثيق الميداني بعد.</p> : (
               <div className="mt-4 space-y-4">
-                <div className="grid gap-3 text-sm sm:grid-cols-2"><div><span className="text-muted">الأيام المفضلة: </span>{v.preferredDates ?? '—'}</div><div><span className="text-muted">المقر: </span>{v.location ?? '—'}</div>{v.scheduledAt && <div><span className="text-muted">الموعد: </span>{fmtDate(v.scheduledAt, true)}</div>}{v.sampleResult && <div><span className="text-muted">العينة: </span><span className="num">{v.sampleResult.matched}/{v.sampleResult.checked}</span> مطابقة</div>}</div>
-                {can(u, 'visits.manage') && ['PAID', 'SCHEDULED'].includes(v.status) && (
-                  <ActionForm action={scheduleVisit} className="grid gap-3 rounded-2xl bg-forest-50 p-4 sm:grid-cols-3">
-                    <input type="hidden" name="visitId" value={v.id} />
-                    <label><span className="label">المستشار الميداني</span><select name="consultantId" defaultValue={v.consultantId ?? ''} className="input"><option value="">اختر</option>{consultants.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-                    <label><span className="label">الموعد (بتوقيت الرياض)</span><input type="datetime-local" name="scheduledAt" defaultValue={toLocal(v.scheduledAt)} className="input ltr" /></label>
-                    <label><span className="label">المقر</span><input name="location" defaultValue={v.location ?? ''} className="input" /></label>
-                    <div className="sm:col-span-3"><Submit>{v.status === 'SCHEDULED' ? 'تحديث الموعد' : 'جدولة الزيارة'}</Submit></div>
-                  </ActionForm>
-                )}
+                <VisitPanel v={v} consultants={consultants} canManage={can(u, 'visits.manage')} />
                 {v.status === 'COMPLETED' && a.status === 'VERIFICATION' && can(u, 'certificates.issue') && (
                   <ActionForm action={issueVerifiedCertificate} className="rounded-2xl bg-lime-100/60 p-4">
                     <input type="hidden" name="assessmentId" value={id} />
-                    <p className="mb-3 text-sm">أنهى المستشار الزيارة وعدّل المستويات. راجع مساحة التقييم ثم اعتمد الشهادة الموثقة.</p>
+                    <p className="mb-3 text-sm">أنهى الخبير الزيارة وعدّل المستويات{v.followupStatus === 'PUBLISHED' ? ' ونُشر التقرير التعقيبي' : '، ولم يُنشر التقرير التعقيبي بعد (يُنصح بنشره قبل الإصدار)'}. راجع مساحة التقييم ثم اعتمد الشهادة الموثقة.</p>
                     <Submit variant="lime">اعتماد وإصدار الشهادة الموثقة</Submit>
                   </ActionForm>
                 )}
@@ -92,7 +100,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <CardTitle title="التقدم والنتيجة" />
             <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <div className="rounded-2xl bg-forest-50 p-4"><div className="text-xs text-muted">اكتمال ملف الجهة</div><div className="font-display text-2xl font-bold num">{a.progress}٪</div><Progress value={a.progress} className="mt-2" /></div>
-              <div className="rounded-2xl bg-forest-50 p-4"><div className="text-xs text-muted">عوامل مقدّرة</div><div className="font-display text-2xl font-bold num">{reviewed}/56</div><Progress value={(reviewed / 56) * 100} className="mt-2" /></div>
+              <div className="rounded-2xl bg-forest-50 p-4"><div className="text-xs text-muted">معايير مقدّرة</div><div className="font-display text-2xl font-bold num">{reviewed}/{CORE_FACTORS}</div><Progress value={(reviewed / CORE_FACTORS) * 100} className="mt-2" /></div>
               <div className="rounded-2xl bg-forest-50 p-4"><div className="text-xs text-muted">استيضاحات مفتوحة</div><div className="font-display text-2xl font-bold num">{openReqs}</div></div>
             </div>
             {res && <div className="mt-5 grid items-center gap-5 sm:grid-cols-[1fr_auto]"><EfficiencyLabel level={res.level} score={res.total} compact qualified={res.status === 'مؤهل'} /><div className="space-y-1 text-sm"><div>المكتبية: <b className="num">{a.deskScore ?? '—'}</b> <LevelBadge level={a.deskLevel} /></div>{a.finalScore != null && <div>الموثقة: <b className="num">{a.finalScore}</b> <LevelBadge level={a.finalLevel} /></div>}</div></div>}

@@ -1,15 +1,19 @@
 // تسميات وألوان مشتركة بين الخادم والواجهة
 import type { AssessmentStatus, Track } from '@/db/schema';
 
+/** فهرس المعايير الكامل والمعايير الجوهرية المحتسبة في الدرجة — مصدر واحد لكل الأرقام المعروضة */
+export const CATALOG_FACTORS = 132;
+export const CORE_FACTORS = 56;
+
 export const STATUS: Record<AssessmentStatus, { label: string; tone: string; step: number; hint: string }> = {
   DRAFT: { label: 'مسودة', tone: 'slate', step: 1, hint: 'أكمل بيانات الطلب' },
   AWAITING_PAYMENT: { label: 'بانتظار الدفع', tone: 'amber', step: 2, hint: 'ادفع رسوم التقييم لبدء التعبئة' },
   DATA_COLLECTION: { label: 'تعبئة البيانات', tone: 'sky', step: 3, hint: 'أجب عن الأسئلة وارفع الملفات المطلوبة' },
-  SUBMITTED: { label: 'أُرسل للمراجعة', tone: 'violet', step: 4, hint: 'بانتظار إسناد المقيّم' },
-  UNDER_REVIEW: { label: 'لدى المقيّم', tone: 'violet', step: 4, hint: 'المقيّم يراجع الأدلة' },
-  INFO_REQUESTED: { label: 'مطلوب استيضاح', tone: 'orange', step: 4, hint: 'أجب عن أسئلة المقيّم' },
+  SUBMITTED: { label: 'أُرسل للمراجعة', tone: 'violet', step: 4, hint: 'بانتظار إسناد الخبير المراجع' },
+  UNDER_REVIEW: { label: 'لدى الخبير المراجع', tone: 'violet', step: 4, hint: 'الخبير المراجع يراجع الأدلة' },
+  INFO_REQUESTED: { label: 'مطلوب استيضاح', tone: 'orange', step: 4, hint: 'أجب عن أسئلة الخبير المراجع' },
   DESK_COMPLETED: { label: 'نتيجة غير موثقة', tone: 'lime', step: 5, hint: 'اطّلع على النتيجة واطلب زيارة التحقق للشهادة الموثقة' },
-  VERIFICATION: { label: 'زيارة التحقق', tone: 'teal', step: 6, hint: 'زيارة المستشار الميدانية' },
+  VERIFICATION: { label: 'زيارة التحقق', tone: 'teal', step: 6, hint: 'زيارة الخبير الميدانية' },
   CERTIFIED: { label: 'شهادة موثقة', tone: 'green', step: 7, hint: 'صدرت الشهادة الموثقة' },
   CANCELLED: { label: 'ملغى', tone: 'rose', step: 0, hint: '' },
 };
@@ -18,9 +22,9 @@ export const JOURNEY = [
   { n: 1, t: 'حساب الجهة', d: 'البيانات الرئيسة للجهة' },
   { n: 2, t: 'الطلب والدفع', d: 'رسوم التقييم والشهادة' },
   { n: 3, t: 'البيانات والأدلة', d: 'الأسئلة ورفع الملفات' },
-  { n: 4, t: 'مراجعة المقيّم', d: 'تقدير العوامل الـ56' },
+  { n: 4, t: 'مراجعة الخبير المراجع', d: 'تقدير المعايير' },
   { n: 5, t: 'النتيجة غير الموثقة', d: 'الدرجة والفجوات والتوصيات' },
-  { n: 6, t: 'زيارة التحقق', d: 'زيارة المستشار الميدانية' },
+  { n: 6, t: 'زيارة التحقق', d: 'زيارة الخبير الميدانية' },
   { n: 7, t: 'الشهادة الموثقة', d: 'سارية حتى نهاية العام' },
 ];
 
@@ -57,15 +61,20 @@ export const CERT_SCALE = [
   { key: 'ناشئ', min: 0, color: '#E85A0A', letter: 'D' },
 ];
 
-export const PRODUCT_LABEL = { CERTIFICATE: 'رسوم التقييم وشهادة كفاءة الأثر', VERIFICATION_VISIT: 'زيارة التحقق للشهادة الموثقة' } as const;
+export const PRODUCT_LABEL = { CERTIFICATE: 'رسوم التقييم المهني وشهادة كفاءة الأثر', VERIFICATION_VISIT: 'التوثيق: زيارة التحقق والتقرير التعقيبي' } as const;
 export const PAYMENT_STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   PENDING: { label: 'بانتظار الدفع', tone: 'amber' }, AWAITING_APPROVAL: { label: 'بانتظار اعتماد التحويل', tone: 'violet' }, PAID: { label: 'مدفوع', tone: 'green' },
   FAILED: { label: 'فشل', tone: 'rose' }, CANCELLED: { label: 'ملغى', tone: 'slate' }, REFUNDED: { label: 'مسترد', tone: 'slate' },
 };
 export const VISIT_STATUS_LABEL: Record<string, { label: string; tone: string }> = {
   REQUESTED: { label: 'مطلوبة', tone: 'amber' }, AWAITING_PAYMENT: { label: 'بانتظار الدفع', tone: 'amber' }, PAID: { label: 'مدفوعة: بانتظار الجدولة', tone: 'violet' },
-  SCHEDULED: { label: 'مجدولة', tone: 'sky' }, COMPLETED: { label: 'منجزة', tone: 'green' }, CANCELLED: { label: 'ملغاة', tone: 'slate' },
+  SCHEDULED: { label: 'مجدولة', tone: 'sky' }, IN_PROGRESS: { label: 'قيد التنفيذ', tone: 'teal' }, COMPLETED: { label: 'منجزة', tone: 'green' }, CANCELLED: { label: 'ملغاة', tone: 'slate' },
 };
+export const VISIT_EVENT_LABEL: Record<string, string> = {
+  requested: 'طُلبت الزيارة', scheduled: 'جُدولت الزيارة', rescheduled: 'أُعيدت جدولة الزيارة', confirmed: 'أكدت الجهة الموعد', proposed: 'اقترحت الجهة مواعيد وبيانات استقبال',
+  started: 'بدأت الزيارة', completed: 'اكتملت الزيارة', cancelled: 'أُلغيت الزيارة', unscheduled: 'أُعيدت إلى قائمة الجدولة', assigned: 'عُيّن الخبير', followup: 'نُشر التقرير التعقيبي',
+};
+export const FOLLOWUP_LABEL: Record<string, { label: string; tone: string }> = { NONE: { label: 'لم يبدأ', tone: 'slate' }, DRAFT: { label: 'مسودة', tone: 'amber' }, PUBLISHED: { label: 'منشور للجهة', tone: 'green' } };
 export const ROLE_LABEL = { SUPER_ADMIN: 'الأدمن', ACCOUNT_MANAGER: 'مدير حساب', ASSESSOR: 'مقيّم', ORG_USER: 'جهة' } as const;
 
 export const REGIONS = ['الرياض', 'مكة المكرمة', 'المدينة المنورة', 'القصيم', 'المنطقة الشرقية', 'عسير', 'تبوك', 'حائل', 'الحدود الشمالية', 'جازان', 'نجران', 'الباحة', 'الجوف'];
@@ -73,8 +82,8 @@ export const FIELDS = ['التنمية الأسرية', 'الصحة', 'التع�
 
 export const ACTION_LABEL: Record<string, string> = {
   'assessment.created': 'أُنشئ طلب التقييم', 'payment.paid': 'اكتمل الدفع', 'payment.approved': 'اعتُمد التحويل البنكي', 'payment.rejected': 'رُفض إيصال التحويل', 'payment.refunded': 'سُجل استرداد',
-  'document.uploaded': 'رُفع ملف', 'assessment.submitted': 'أُرسل الطلب للمراجعة', 'assessment.resubmitted': 'أُعيد الإرسال بعد الاستيضاح', 'assessment.assigned': 'أُسند المقيّم', 'assessment.status': 'تغيّرت حالة الطلب',
-  'review.started': 'بدأ المقيّم المراجعة', 'review.ai_accepted': 'اعتُمدت مقترحات المساعد', 'info.requested': 'طلب المقيّم استيضاحاً', 'desk.completed': 'صدرت النتيجة غير الموثقة',
-  'visit.requested': 'طُلبت زيارة التحقق', 'visit.scheduled': 'جُدولت زيارة التحقق', 'visit.completed': 'اكتملت زيارة التحقق', 'certificate.verified': 'صدرت الشهادة الموثقة', 'certificate.revoked': 'أُلغيت شهادة',
+  'document.uploaded': 'رُفع ملف', 'assessment.submitted': 'أُرسل الطلب للمراجعة', 'assessment.resubmitted': 'أُعيد الإرسال بعد الاستيضاح', 'assessment.assigned': 'أُسند الخبير المراجع', 'assessment.status': 'تغيّرت حالة الطلب',
+  'review.started': 'بدأ الخبير المراجع المراجعة', 'review.ai_accepted': 'اعتُمدت المقترحات الأولية', 'info.requested': 'طلب الخبير المراجع استيضاحاً', 'desk.completed': 'صدرت النتيجة غير الموثقة',
+  'visit.requested': 'طُلبت زيارة التحقق', 'visit.scheduled': 'جُدولت زيارة التحقق', 'visit.completed': 'اكتملت زيارة التحقق', 'visit.started': 'بدأت زيارة التحقق', 'visit.cancelled': 'أُلغيت زيارة التحقق', 'visit.confirmed': 'أكدت الجهة موعد الزيارة', 'visit.followup': 'نُشر التقرير التعقيبي', 'org.created': 'أُضيفت جهة', 'org.verified': 'وُثقت جهة', 'org.rejected': 'أُعيدت جهة للتصحيح', 'org.submitted': 'قُدمت جهة للتوثيق', 'org.document': 'رُفع مستند جهة', 'message.sent': 'رسالة في محادثة الطلب', 'settings.pricing': 'عُدّلت الأسعار', 'settings.social': 'عُدّلت إعدادات الدخول الاجتماعي', 'assessment.verifier': 'عُيّن خبير التحقق', 'certificate.verified': 'صدرت الشهادة الموثقة', 'certificate.revoked': 'أُلغيت شهادة',
   'user.created': 'أُنشئ مستخدم', 'user.updated': 'عُدّل مستخدم', 'settings.gateway': 'عُدّلت بوابة دفع', 'settings.ai': 'عُدّلت إعدادات Claude', 'auth.login': 'تسجيل دخول',
 };

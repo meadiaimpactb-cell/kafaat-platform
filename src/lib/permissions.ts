@@ -2,6 +2,7 @@
 export const PERMISSIONS = [
   { code: 'orgs.view', label: 'عرض الجهات', group: 'الجهات' },
   { code: 'orgs.manage', label: 'تعديل بيانات الجهات وإسناد مدير الحساب', group: 'الجهات' },
+  { code: 'orgs.verify', label: 'توثيق الجهات ومراجعة مستنداتها', group: 'الجهات' },
   { code: 'assessments.view', label: 'عرض طلبات التقييم', group: 'التقييمات' },
   { code: 'assessments.assign', label: 'إسناد المقيّمين', group: 'التقييمات' },
   { code: 'assessments.manage', label: 'إدارة حالة التقييم واعتماد النتائج', group: 'التقييمات' },
@@ -15,7 +16,8 @@ export const PERMISSIONS = [
   { code: 'users.manage', label: 'إدارة المقيّمين', group: 'الفريق' },
   { code: 'settings.pricing', label: 'تعديل الأسعار والضريبة', group: 'الإعدادات' },
   { code: 'settings.gateways', label: 'إعداد بوابات الدفع ومفاتيحها', group: 'الإعدادات' },
-  { code: 'settings.ai', label: 'إعدادات الذكاء الاصطناعي', group: 'الإعدادات' },
+  { code: 'settings.ai', label: 'إعدادات الفحص الأولي للمستندات', group: 'الإعدادات' },
+  { code: 'settings.social', label: 'إعدادات الدخول عبر Google وFacebook وLinkedIn', group: 'الإعدادات' },
   { code: 'settings.requirements', label: 'متطلبات الملفات', group: 'الإعدادات' },
   { code: 'reports.view', label: 'التقارير والإحصاءات', group: 'التقارير' },
   { code: 'audit.view', label: 'سجل النشاط', group: 'التقارير' },

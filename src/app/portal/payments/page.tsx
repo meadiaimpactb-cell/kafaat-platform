@@ -2,14 +2,14 @@ import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
 import { Receipt, Wallet } from 'lucide-react';
 import { db, payments, invoices, assessments } from '@/db';
-import { requireUser } from '@/lib/auth';
+import { requireOrgUser } from '@/lib/auth';
 import { PageHeader, Table, Td, Badge, Empty, ButtonLink } from '@/components/ui';
 import { fmtDate, fmtSAR } from '@/lib/format';
 import { PAYMENT_STATUS_LABEL, PRODUCT_LABEL } from '@/lib/domain';
 
 export const metadata = { title: 'المدفوعات والفواتير' };
 export default async function Page({ searchParams }: { searchParams: Promise<{ receipt?: string }> }) {
-  const u = await requireUser(['ORG_USER']); const sp = await searchParams;
+  const u = await requireOrgUser(); const sp = await searchParams;
   const rows = await db.select({ p: payments, inv: invoices, num: assessments.number }).from(payments).leftJoin(invoices, eq(invoices.paymentId, payments.id)).leftJoin(assessments, eq(assessments.id, payments.assessmentId)).where(eq(payments.orgId, u.orgId!)).orderBy(desc(payments.createdAt));
   return (
     <div>

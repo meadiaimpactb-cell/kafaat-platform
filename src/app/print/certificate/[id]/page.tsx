@@ -66,7 +66,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               <div className="mt-[2mm] h-[0.8mm] w-[36mm]" style={{ background: GOLD }} />
               <div className="mt-[2mm] text-[9.5pt] text-muted">{[snap.orgCity, snap.field, `المسار ${TRACK_LABEL[snap.track]}`].filter(Boolean).join(' · ')}</div>
               <p className="mt-[5mm] text-[12pt] leading-[8.5mm] text-ink-2">
-                {qualified && !below ? <>قد حققت مستوى <b className="rounded-[1.5mm] px-[2mm] text-white" style={{ background: col }}>{c.level}</b> في تقييم كفاءة الأثر</> : below ? <>قد اجتازت البوابات الأساسية في تقييم كفاءة الأثر ودرجتها دون حد المستوى الأول</> : <>قد خضعت لتقييم كفاءة الأثر وهي <b>قيد التأهيل</b> لعدم استيفاء البوابات الأساسية</>} عن السنة المالية <b className="num">{c.periodYear}</b>، بدرجة <b className="num">{c.score.toFixed(1)}</b> من 100، وفق منهج يقيس قدرة الجهة على تحويل مواردها إلى أثر حقيقي موثق عبر 56 عاملاً{verified ? '، وتحقق مستشار المنصة ميدانياً من أدلته بعينة تتبع.' : '، بمراجعة مكتبية من مقيّم معتمد للأدلة المرفوعة، دون زيارة تحقق ميدانية.'}
+                {qualified && !below ? <>قد حققت مستوى <b className="rounded-[1.5mm] px-[2mm] text-white" style={{ background: col }}>{c.level}</b> في تقييم كفاءة الأثر</> : below ? <>قد اجتازت البوابات الأساسية في تقييم كفاءة الأثر ودرجتها دون حد المستوى الأول</> : <>قد خضعت لتقييم كفاءة الأثر وهي <b>قيد التأهيل</b> لعدم استيفاء البوابات الأساسية</>} عن السنة المالية <b className="num">{c.periodYear}</b>، بدرجة <b className="num">{c.score.toFixed(1)}</b> من 100، وفق منهج يقيس قدرة الجهة على تحويل مواردها إلى أثر حقيقي موثق عبر منهج من 132 معياراً{verified ? '، وتحقق خبير معتمد ميدانياً من أدلته بعينة تتبع.' : '، بمراجعة مكتبية من مقيّم معتمد للأدلة المرفوعة، دون زيارة تحقق ميدانية.'}
               </p>
               <div className="mt-[7mm] grid grid-cols-4 gap-[3mm]">
                 {axes.map(x => (
@@ -75,7 +75,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               </div>
               <div className="mt-auto flex items-end justify-between gap-[6mm] pt-[4mm]">
                 <div className="flex gap-[10mm] text-center text-[8.5pt]">
-                  <div><div className="mb-[1mm] h-[9mm] w-[40mm] border-b border-ink/40" /><div className="text-muted">{verified ? 'مستشار التحقق الميداني' : 'المقيّم المعتمد'}</div></div>
+                  <div><div className="mb-[1mm] h-[9mm] w-[40mm] border-b border-ink/40" /><div className="text-muted">{verified ? 'خبير التحقق الميداني' : 'الخبير المراجع المعتمد'}</div></div>
                   <div><div className="mb-[1mm] h-[9mm] w-[40mm] border-b border-ink/40" /><div className="text-muted">مدير برنامج كفاءة الأثر</div></div>
                 </div>
                 <div className="relative grid size-[26mm] place-items-center rounded-full text-center font-display text-[9pt] font-black leading-tight text-[#3A2A08]" style={{ background: `radial-gradient(circle at 35% 30%, ${GOLD2}, ${GOLD} 60%, #8E6D1E)` }}>

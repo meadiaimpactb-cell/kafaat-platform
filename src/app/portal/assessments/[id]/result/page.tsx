@@ -12,7 +12,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const { id } = await params;
   const { a, hasResult } = await loadOwn(id);
   const snap = (a.finalResult ?? a.deskResult) as unknown as ScoreSnapshot | null;
-  if (!hasResult || !snap) return <Empty icon={<Gauge className="size-6" />} title="النتيجة لم تصدر بعد" text="تظهر النتيجة هنا بعد أن يعتمد المقيّم التقييم المكتبي." />;
+  if (!hasResult || !snap) return <Empty icon={<Gauge className="size-6" />} title="النتيجة لم تصدر بعد" text="تظهر النتيجة هنا بعد أن يعتمد الخبير المراجع التقييم المكتبي." />;
   const verified = a.status === 'CERTIFIED' && !!a.finalResult;
   const r = evaluate(snap.levels, Number(a.expenses ?? 0));
   const fs = await db.select().from(factors);
@@ -27,7 +27,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     <div className="space-y-6">
       <div className={`flex flex-wrap items-center gap-4 rounded-2xl p-5 ${verified ? 'bg-forest-100 text-forest-900 ring-1 ring-forest-300' : 'bg-amber-50 text-amber-950 ring-1 ring-amber-200'}`}>
         {verified ? <ShieldCheck className="size-7 shrink-0" /> : <ShieldAlert className="size-7 shrink-0" />}
-        <div className="flex-1"><div className="font-display font-semibold">{verified ? 'نتيجة موثقة بزيارة تحقق ميدانية' : 'نتيجة غير موثقة'}</div><div className="text-sm opacity-80">{verified ? 'صدرت بعد تحقق المستشار ميدانياً من الأدلة بعينة تتبع.' : `صادرة بمراجعة مكتبية من المقيّم${assessor ? ` (${assessor})` : ''} للأدلة المرفوعة. للحصول على شهادة كفاءة الأثر الموثقة اطلب زيارة التحقق.`}</div></div>
+        <div className="flex-1"><div className="font-display font-semibold">{verified ? 'نتيجة موثقة بزيارة تحقق ميدانية' : 'نتيجة غير موثقة'}</div><div className="text-sm opacity-80">{verified ? 'صدرت بعد تحقق الخبير ميدانياً من الأدلة بعينة تتبع.' : `صادرة بمراجعة مكتبية من الخبير المراجع${assessor ? ` (${assessor})` : ''} للأدلة المرفوعة. للحصول على شهادة كفاءة الأثر الموثقة اطلب زيارة التحقق.`}</div></div>
         {!verified && <ButtonLink href={`/portal/assessments/${id}/verification`} variant="primary">طلب زيارة التحقق</ButtonLink>}
       </div>
 
@@ -61,7 +61,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </div>
 
       <Card className="p-6">
-        <CardTitle title="المحاور الأربعة" subtitle="كيف تكوّنت الدرجة: كل محور بوزنه، ومحور الأثر بعد معاملَي التصميم والانتقاء" icon={<Gauge className="size-5" />} />
+        <CardTitle title="مكونات الدرجة" subtitle="كيف تكوّنت درجة جهتكم ومستويات المعايير في كل مكوّن" icon={<Gauge className="size-5" />} />
         <div className="mt-6 grid gap-5 md:grid-cols-2">
           {Object.entries(AXES).map(([k, ax]) => {
             const v = k === '3' ? snap.a3adj : snap.axes[k]; const pct = (v / ax.pts) * 100;
@@ -69,7 +69,6 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               <div key={k} className="rounded-2xl border border-line p-5">
                 <div className="flex items-baseline justify-between gap-3"><div><div className="text-xs text-muted">المحور {k}</div><div className="font-semibold">{ax.name}</div></div><div className="font-display text-2xl font-bold num">{fmtNum(v, 1)}<span className="text-sm font-normal text-muted"> / {ax.pts}</span></div></div>
                 <div className="mt-3 h-3 overflow-hidden rounded-full bg-forest-100"><div className="h-full rounded-full bg-gradient-to-l from-forest-500 to-forest-800" style={{ width: `${Math.max(2, pct)}%` }} /></div>
-                {k === '3' && <div className="mt-2 text-xs text-muted">قبل المعاملات {fmtNum(snap.axes['3'], 1)} × معامل التصميم {fmtNum(snap.Fd, 2)} × معامل الانتقاء {fmtNum(snap.Fs, 2)}</div>}
                 <div className="mt-4 flex flex-wrap gap-2">{r.rows.filter(x => String(x.axis) === k).map(x => <span key={x.id} title={F[x.id]?.name} className="inline-flex items-center gap-1.5 rounded-lg bg-forest-50 py-1 pe-2 ps-1 text-xs"><LevelChip level={x.level} size="sm" /><span className="max-w-40 truncate">{F[x.id]?.name}</span><span className="num text-muted">{fmtNum(x.pts, 1)}</span></span>)}</div>
               </div>
             );
@@ -94,14 +93,14 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <ol className="mt-4 space-y-2">{snap.gaps.slice(0, 10).map((g, i) => <li key={g.id} className="flex items-center gap-3 rounded-xl border border-line p-3 text-sm"><span className="grid size-7 place-items-center rounded-full bg-forest-950 text-xs font-bold text-white num">{i + 1}</span><span className="flex-1">{F[g.id]?.name}</span><LevelChip level={g.level} size="sm" /><span className="text-xs text-muted">← 4</span></li>)}</ol>
         </Card>
         <Card className="p-6">
-          <CardTitle title="توصيات المقيّم" icon={<Lightbulb className="size-5" />} />
+          <CardTitle title="توصيات الخبير المراجع" icon={<Lightbulb className="size-5" />} />
           {a.assessorSummary && <p className="mt-4 rounded-2xl bg-forest-50 p-4 text-sm leading-7">{a.assessorSummary}</p>}
           <ul className="mt-4 space-y-2">{recs.sort((x, y) => x.priority - y.priority).map((x, i) => <li key={i} className="flex gap-3 text-sm leading-6"><BadgeCheck className={`mt-0.5 size-4 shrink-0 ${x.priority === 1 ? 'text-orange-brand' : 'text-forest-600'}`} />{x.text}</li>)}</ul>
         </Card>
       </div>
 
       <Card className="p-6">
-        <CardTitle title="مستويات العوامل الـ56" subtitle="المستوى المعتمد لكل عامل من 0 إلى 4" />
+        <CardTitle title="مستويات المعايير" subtitle="المستوى المعتمد لكل معيار من 0 إلى 4" />
         <div className="mt-5 space-y-6">
           {SECTIONS.map(s => { const list = fs.filter(f => f.section === s.key).sort((x, y) => x.sortOrder - y.sortOrder); return (
             <div key={s.key}><div className="mb-2 text-sm font-semibold text-forest-800">{s.title}</div>

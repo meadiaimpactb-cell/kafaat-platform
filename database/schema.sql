@@ -67,6 +67,11 @@ CREATE TABLE `assessments` (
   `certified_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL,
+  `verifier_id` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reveal_assessor` tinyint(1) NOT NULL DEFAULT '0',
+  `reveal_verifier` tinyint(1) NOT NULL DEFAULT '1',
+  `assessor_assigned_at` datetime DEFAULT NULL,
+  `verifier_assigned_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `assess_number_uq` (`number`),
   KEY `assess_status_idx` (`status`),
@@ -163,6 +168,20 @@ CREATE TABLE `documents` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `email_outbox` (
+  `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `to_email` varchar(400) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `subject` varchar(250) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `html` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('SENT','QUEUED','FAILED') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'QUEUED',
+  `error` text COLLATE utf8mb4_unicode_ci,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `outbox_created_idx` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `factor_reviews` (
   `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
   `assessment_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -242,6 +261,21 @@ CREATE TABLE `invoices` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `messages` (
+  `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `assessment_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `sender_role` enum('ORG','EXPERT','STAFF') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `sender_id` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `body` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `org_read_at` datetime DEFAULT NULL,
+  `staff_read_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `msg_assess_idx` (`assessment_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `notifications` (
   `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -252,6 +286,36 @@ CREATE TABLE `notifications` (
   `created_at` datetime NOT NULL,
   PRIMARY KEY (`id`),
   KEY `notif_user_idx` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `org_documents` (
+  `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `org_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `kind` enum('LICENSE','BYLAWS','AUTH_LETTER','BOARD','TAX_CERT','OTHER') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `file_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `stored_path` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `mime_type` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `size` int NOT NULL,
+  `sha256` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `uploaded_by_id` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `orgdoc_org_idx` (`org_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `organization_members` (
+  `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `org_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `role` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'OWNER',
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `orgmem_uq` (`org_id`,`user_id`),
+  KEY `orgmem_user_idx` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -288,7 +352,35 @@ CREATE TABLE `organizations` (
   `account_manager_id` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL,
+  `license_issuer` varchar(160) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `license_issue_date` datetime DEFAULT NULL,
+  `license_expiry` datetime DEFAULT NULL,
+  `national_address` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `rep_name` varchar(160) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `rep_title` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `rep_phone` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `rep_email` varchar(190) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `verification_status` enum('UNVERIFIED','PENDING','VERIFIED','REJECTED') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'UNVERIFIED',
+  `verification_note` text COLLATE utf8mb4_unicode_ci,
+  `submitted_for_verification_at` datetime DEFAULT NULL,
+  `verified_at` datetime DEFAULT NULL,
+  `verified_by_id` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_by_id` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `password_resets` (
+  `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `token_hash` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `used_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `pwreset_token_uq` (`token_hash`),
+  KEY `pwreset_user_idx` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -356,6 +448,20 @@ CREATE TABLE `settings` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `user_identities` (
+  `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `provider` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `provider_user_id` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(190) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `identity_uq` (`provider`,`provider_user_id`),
+  KEY `identity_user_idx` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `users` (
   `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(190) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -380,11 +486,26 @@ CREATE TABLE `users` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `visit_events` (
+  `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `visit_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `actor_id` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `actor_role` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `data` json DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `vevent_visit_idx` (`visit_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `visits` (
   `id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
   `assessment_id` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
   `consultant_id` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `status` enum('REQUESTED','AWAITING_PAYMENT','PAID','SCHEDULED','COMPLETED','CANCELLED') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'REQUESTED',
+  `status` enum('REQUESTED','AWAITING_PAYMENT','PAID','SCHEDULED','IN_PROGRESS','COMPLETED','CANCELLED') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'REQUESTED',
   `preferred_dates` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `scheduled_at` datetime DEFAULT NULL,
   `location` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -394,6 +515,15 @@ CREATE TABLE `visits` (
   `completed_at` datetime DEFAULT NULL,
   `created_at` datetime NOT NULL,
   `updated_at` datetime NOT NULL,
+  `org_confirmed_at` datetime DEFAULT NULL,
+  `site_contact_name` varchar(160) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `site_contact_phone` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reschedule_count` int NOT NULL DEFAULT '0',
+  `cancel_reason` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `started_at` datetime DEFAULT NULL,
+  `followup_status` enum('NONE','DRAFT','PUBLISHED') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'NONE',
+  `followup` json DEFAULT NULL,
+  `followup_published_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `visit_assess_uq` (`assessment_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

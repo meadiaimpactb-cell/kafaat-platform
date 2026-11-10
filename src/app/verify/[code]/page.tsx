@@ -25,7 +25,7 @@ export default async function Page({ params }: { params: Promise<{ code: string 
           <div className="card overflow-hidden">
             <div className={`flex items-center gap-4 p-6 ${valid ? (verified ? 'bg-forest-950 text-white' : 'bg-amber-50') : 'bg-rose-50'}`}>
               {valid ? (verified ? <BadgeCheck className="size-12 text-lime-brand" /> : <ShieldAlert className="size-12 text-amber-600" />) : <CircleX className="size-12 text-rose-600" />}
-              <div><div className="font-display text-2xl font-bold">{!valid ? (c.status === 'REVOKED' ? 'شهادة ملغاة' : 'شهادة منتهية الصلاحية') : verified ? 'شهادة موثقة سارية' : 'إفادة نتيجة غير موثقة سارية'}</div><div className={`text-sm ${valid && verified ? 'text-white/70' : 'text-muted'}`}>{verified ? 'تحقق مستشار المنصة ميدانياً من أدلة الجهة' : 'صادرة بمراجعة مكتبية دون زيارة تحقق ميدانية'}{c.status === 'REVOKED' && c.revokedReason ? ` · السبب: ${c.revokedReason}` : ''}</div></div>
+              <div><div className="font-display text-2xl font-bold">{!valid ? (c.status === 'REVOKED' ? 'شهادة ملغاة' : 'شهادة منتهية الصلاحية') : verified ? 'شهادة موثقة سارية' : 'إفادة نتيجة غير موثقة سارية'}</div><div className={`text-sm ${valid && verified ? 'text-white/70' : 'text-muted'}`}>{verified ? 'تحقق خبير معتمد ميدانياً من أدلة الجهة' : 'صادرة بمراجعة مكتبية دون زيارة تحقق ميدانية'}{c.status === 'REVOKED' && c.revokedReason ? ` · السبب: ${c.revokedReason}` : ''}</div></div>
             </div>
             <div className="grid gap-8 p-7 md:grid-cols-[1fr_1fr]">
               <dl className="space-y-4">

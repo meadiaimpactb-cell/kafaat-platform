@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { and, eq, gt } from 'drizzle-orm';
 import { cache } from 'react';
-import { db, users, sessions, organizations } from '@/db';
+import { db, users, sessions, organizations, organizationMembers } from '@/db';
 import { randomToken } from './crypto';
 import { ALL_PERMISSIONS, type Permission } from './permissions';
 import type { Role } from '@/db/schema';
@@ -12,7 +12,9 @@ import type { Role } from '@/db/schema';
 export const SESSION_COOKIE = 'kafaat_session';
 const SESSION_DAYS = 14;
 
-export type SessionUser = typeof users.$inferSelect & { org: typeof organizations.$inferSelect | null };
+type OrgRow = typeof organizations.$inferSelect;
+/** org = الجهة النشطة حالياً، وorgs = كل الجهات التي يديرها الحساب (حساب واحد قد يخدم عدة جهات) */
+export type SessionUser = typeof users.$inferSelect & { org: OrgRow | null; orgs: OrgRow[]; orgIds: string[] };
 
 export async function hashPassword(p: string) { return bcrypt.hash(p, 10); }
 export async function verifyPassword(p: string, h: string) { return bcrypt.compare(p, h); }
@@ -40,8 +42,18 @@ export const currentUser = cache(async (): Promise<SessionUser | null> => {
     .leftJoin(organizations, eq(organizations.id, users.orgId))
     .where(and(eq(sessions.id, id), gt(sessions.expiresAt, new Date()))).limit(1);
   if (!rows.length || !rows[0].u.active) return null;
-  return { ...rows[0].u, org: rows[0].o };
+  const u = rows[0].u; let org = rows[0].o;
+  let orgs: OrgRow[] = [];
+  if (u.role === 'ORG_USER') {
+    orgs = (await db.select({ o: organizations }).from(organizationMembers).innerJoin(organizations, eq(organizations.id, organizationMembers.orgId)).where(eq(organizationMembers.userId, u.id)).orderBy(organizationMembers.createdAt)).map(r => r.o);
+    // الجهة النشطة يجب أن تكون ضمن عضويات الحساب؛ وإلا فأول جهة له
+    if (!org || !orgs.some(o => o.id === org!.id)) org = orgs[0] ?? null;
+  }
+  return { ...u, orgId: org?.id ?? null, org, orgs, orgIds: orgs.map(o => o.id) };
 });
+
+/** هل يملك مستخدم الجهة صلاحية على هذه الجهة؟ */
+export const ownsOrg = (u: Pick<SessionUser, 'orgIds'>, orgId: string | null | undefined) => !!orgId && u.orgIds.includes(orgId);
 
 export const homeFor = (role: Role) => (role === 'ORG_USER' ? '/portal' : role === 'ASSESSOR' ? '/assessor' : '/admin');
 
@@ -50,6 +62,13 @@ export async function requireUser(roles?: Role[]): Promise<SessionUser> {
   if (!u) redirect('/login');
   if (roles && !roles.includes(u.role)) redirect(homeFor(u.role));
   return u;
+}
+
+/** صفحات البوابة التي تحتاج جهة نشطة: بلا جهة يُوجَّه المستخدم إلى إضافة جهته أولاً */
+export async function requireOrgUser(): Promise<SessionUser & { org: NonNullable<SessionUser['org']>; orgId: string }> {
+  const u = await requireUser(['ORG_USER']);
+  if (!u.org) redirect('/portal/onboarding');
+  return u as SessionUser & { org: NonNullable<SessionUser['org']>; orgId: string };
 }
 
 export function permissionsOf(u: Pick<SessionUser, 'role' | 'permissions'>): Permission[] {

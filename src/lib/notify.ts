@@ -1,23 +1,21 @@
 import 'server-only';
 import { inArray, eq, or, and } from 'drizzle-orm';
-import { db, notifications, users, activityLogs } from '@/db';
+import { db, notifications, users, activityLogs, organizationMembers } from '@/db';
+import { sendMail, mailTemplate, esc } from './mail';
 
 export async function notify(userIds: (string | null | undefined)[], title: string, body?: string, link?: string) {
   const ids = [...new Set(userIds.filter(Boolean) as string[])];
   if (!ids.length) return;
   await db.insert(notifications).values(ids.map(userId => ({ userId, title, body, link })));
-  if (process.env.SMTP_HOST) {
-    try {
-      const nodemailer = await import('nodemailer');
-      const t = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined });
-      const rs = await db.select({ email: users.email }).from(users).where(inArray(users.id, ids));
-      const url = link ? (process.env.APP_URL || '') + link : '';
-      await t.sendMail({ from: process.env.SMTP_FROM, to: rs.map(r => r.email).join(','), subject: title, html: `<div dir="rtl" style="font-family:Tahoma"><h3>${title}</h3><p>${body ?? ''}</p>${url ? `<p><a href="${url}">فتح في المنصة</a></p>` : ''}</div>` });
-    } catch (e) { console.error('mail failed', e); }
-  }
+  try {
+    const rs = await db.select({ email: users.email }).from(users).where(inArray(users.id, ids));
+    const url = link ? (process.env.APP_URL || '').replace(/\/$/, '') + link : '';
+    await sendMail(rs.map(r => r.email), title, mailTemplate(title, esc(body ?? ''), url ? { label: 'فتح في المنصة', url } : undefined));
+  } catch (e) { console.error('notify mail failed', e); }
 }
+/** كل أعضاء الجهة (حساب واحد قد يدير عدة جهات، فالعضوية هي المرجع) */
 export async function notifyOrg(orgId: string, title: string, body?: string, link?: string) {
-  const rs = await db.select({ id: users.id }).from(users).where(and(eq(users.orgId, orgId), eq(users.active, true)));
+  const rs = await db.select({ id: users.id }).from(organizationMembers).innerJoin(users, eq(users.id, organizationMembers.userId)).where(and(eq(organizationMembers.orgId, orgId), eq(users.active, true)));
   await notify(rs.map(r => r.id), title, body, link);
 }
 export async function notifyStaff(title: string, body?: string, link?: string, extra: (string | null | undefined)[] = []) {

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { and, count, eq, isNull } from 'drizzle-orm';
-import { Bell, LogOut, Menu } from 'lucide-react';
+import { Bell, LogOut, Menu, Search } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { db, notifications } from '@/db';
 import type { SessionUser } from '@/lib/auth';
@@ -9,7 +9,7 @@ import { logoutAction } from '@/app/actions/auth';
 import { Avatar } from './ui';
 import { NavLinks, type NavItem } from './client/nav-links';
 
-export async function AppShell({ user, nav, children, homeHref, notifHref, tone = 'dark' }: { user: SessionUser; nav: NavItem[]; children: ReactNode; homeHref: string; notifHref: string; tone?: 'dark' | 'light' }) {
+export async function AppShell({ user, nav, children, homeHref, notifHref, tone = 'dark', sidebarExtra, searchHref }: { user: SessionUser; nav: NavItem[]; children: ReactNode; homeHref: string; notifHref: string; tone?: 'dark' | 'light'; sidebarExtra?: ReactNode; searchHref?: string }) {
   const unread = (await db.select({ c: count() }).from(notifications).where(and(eq(notifications.userId, user.id), isNull(notifications.readAt))))[0].c;
   const dark = tone === 'dark';
   const sidebar = (
@@ -23,10 +23,11 @@ export async function AppShell({ user, nav, children, homeHref, notifHref, tone 
           <Avatar name={user.name} className={dark ? 'from-lime-brand to-forest-500 text-forest-950' : ''} />
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold">{user.name}</div>
-            <div className={`truncate text-xs ${dark ? 'text-white/55' : 'text-muted'}`}>{user.role === 'ORG_USER' ? user.org?.name : ROLE_LABEL[user.role]}</div>
+            <div className={`truncate text-xs ${dark ? 'text-white/55' : 'text-muted'}`}>{user.role === 'ORG_USER' ? (user.orgs.length > 1 ? `${user.orgs.length} جهات في حسابك` : user.org?.name ?? 'أضف جهتك') : ROLE_LABEL[user.role]}</div>
           </div>
         </div>
       </div>
+      {sidebarExtra}
       <nav className="flex-1 overflow-y-auto px-3"><NavLinks items={nav} dark={dark} /></nav>
       <form action={logoutAction} className="p-4">
         <button className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${dark ? 'text-white/60 hover:bg-white/5 hover:text-white' : 'text-muted hover:bg-forest-50'}`}><LogOut className="size-4" /> تسجيل الخروج</button>
@@ -43,7 +44,9 @@ export async function AppShell({ user, nav, children, homeHref, notifHref, tone 
             <summary className="grid size-10 cursor-pointer list-none place-items-center rounded-xl border border-line bg-white"><Menu className="size-5" /></summary>
             <div className="fixed inset-y-0 right-0 z-50 w-72 shadow-2xl">{sidebar}</div>
           </details>
-          <div className="hidden text-sm text-muted lg:block">{new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+          {searchHref ? (
+            <form action={searchHref} className="relative hidden max-w-md flex-1 lg:block"><Search className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted" /><input name="q" placeholder="بحث شامل: جهة، طلب، ترخيص، دفعة…" className="input h-10 w-full pr-9" /></form>
+          ) : <div className="hidden text-sm text-muted lg:block">{new Date().toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>}
           <div className="flex items-center gap-2">
             <Link href={notifHref} className="relative grid size-10 place-items-center rounded-xl border border-line bg-white text-ink-2 hover:border-forest-500">
               <Bell className="size-[18px]" />

@@ -42,7 +42,8 @@ export default async function Layout({ children, params }: { children: ReactNode
         { href: `${base}/documents`, label: 'الملفات والأدلة', disabled: !paid },
         { href: `${base}/requests`, label: 'الاستيضاحات', count: open, tone: 'orange', disabled: !paid },
         { href: `${base}/result`, label: 'النتيجة', disabled: !hasResult },
-        { href: `${base}/verification`, label: 'زيارة التحقق', disabled: !hasResult },
+        { href: `${base}/verification`, label: 'التوثيق', disabled: !hasResult },
+        { href: `/portal/messages/${id}`, label: 'المراسلة', disabled: !paid },
       ]} />
       <div>{children}</div>
     </div>
